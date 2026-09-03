@@ -1,4 +1,0 @@
-Model,MAE (₹),R2 Score
-Random Forest,7222.68,0.9982
-Gradient Boosting,6636.79,0.998
-XGBoost,7783.56,0.9986
