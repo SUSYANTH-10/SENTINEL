@@ -17,15 +17,20 @@ class ApiService {
   Future<Map<String, dynamic>> signup({
     required String userId,
     required String password,
+    String? safetyPassword,
     required double balance,
   }) async {
     final url = Uri.parse('$baseUrl/api/v1/auth/signup');
 
-    final body = jsonEncode({
+    final payload = <String, dynamic>{
       'user_id': userId,
       'password': password,
       'balance': balance,
-    });
+    };
+
+    if (safetyPassword != null && safetyPassword.trim().isNotEmpty) {
+      payload['safety_password'] = safetyPassword.trim();
+    }
 
     try {
       final response = await http.post(
@@ -33,7 +38,7 @@ class ApiService {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: body,
+        body: jsonEncode(payload),
       );
 
       final data = jsonDecode(response.body);
@@ -95,7 +100,99 @@ class ApiService {
   }
 
   // ============================================================
-  // RISK ASSESSMENT
+  // TRANSACTION EXECUTION (REAL OR SHADOW)
+  // ============================================================
+
+  Future<Map<String, dynamic>> executeTransaction({
+    required String userId,
+    required String recipientId,
+    required double amount,
+    required String loginMode,
+    Map<String, dynamic>? telemetry,
+    bool confirmed = true,
+  }) async {
+    final url = Uri.parse('$baseUrl/api/v1/transactions');
+
+    final body = jsonEncode({
+      'user_id': userId,
+      'recipient_id': recipientId,
+      'amount': amount,
+      'login_mode': loginMode,
+      'telemetry': telemetry,
+      'confirmed': confirmed,
+    });
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: body,
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return data as Map<String, dynamic>;
+      }
+
+      throw Exception(data['detail'] ?? 'Transaction failed');
+    } catch (e) {
+      debugPrint('[SENTINEL TX] Execution failed: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================================
+  // TRANSACTION HISTORY (ISOLATED REAL VS SHADOW LEDGER)
+  // ============================================================
+
+  Future<List<Map<String, dynamic>>> fetchTransactions({
+    required String userId,
+    required String loginMode,
+  }) async {
+    final url = Uri.parse(
+      '$baseUrl/api/v1/transactions?user_id=$userId&login_mode=$loginMode',
+    );
+
+    try {
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final list = data['transactions'] as List<dynamic>? ?? [];
+        return list.cast<Map<String, dynamic>>();
+      }
+
+      return [];
+    } catch (e) {
+      debugPrint('[SENTINEL TX] Fetch failed: $e');
+      return [];
+    }
+  }
+
+  // ============================================================
+  // GHOST SESSION SAFE EXIT
+  // ============================================================
+
+  Future<void> exitGhostSession(String userId) async {
+    final url = Uri.parse('$baseUrl/api/v1/ghost/exit');
+    try {
+      await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'user_id': userId}),
+      );
+    } catch (e) {
+      debugPrint('[SENTINEL GHOST] Exit call failed: $e');
+    }
+  }
+
+  // ============================================================
+  // STANDALONE RISK ASSESSMENT
   // ============================================================
 
   Future<Map<String, dynamic>> assessRisk({
@@ -134,8 +231,7 @@ class ApiService {
       );
 
       if (response.statusCode == 200) {
-        return jsonDecode(response.body)
-            as Map<String, dynamic>;
+        return jsonDecode(response.body) as Map<String, dynamic>;
       }
 
       return _fallbackLocalAssessment(
@@ -146,8 +242,7 @@ class ApiService {
       );
     } catch (e) {
       debugPrint(
-        '[SENTINEL API] Backend unreachable. '
-        'Running local fallback: $e',
+        '[SENTINEL API] Backend unreachable. Running local fallback: $e',
       );
 
       return _fallbackLocalAssessment(
@@ -170,9 +265,7 @@ class ApiService {
     double amount,
   ) {
     double score = 0.0;
-
     final List<String> reasons = [];
-
     final bool isCall = callStatus.contains('activeCall');
 
     if (isCall) {
@@ -195,7 +288,6 @@ class ApiService {
     }
 
     score = score.clamp(0.0, 100.0);
-
     String action = 'ALLOW';
 
     if (score >= 70.0) {

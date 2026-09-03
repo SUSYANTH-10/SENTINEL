@@ -1,7 +1,9 @@
-
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/session_manager.dart';
+import '../theme/theme_manager.dart';
+import '../widgets/scale_button.dart';
 import 'payment_screen.dart';
 import 'signup_screen.dart';
 
@@ -13,17 +15,12 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController _userIdController =
-      TextEditingController();
-
-  final TextEditingController _passwordController =
-      TextEditingController();
-
+  final TextEditingController _userIdController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   final ApiService _apiService = ApiService();
 
   bool _obscurePassword = true;
   bool _isLoading = false;
-
   String? _errorMessage;
 
   @override
@@ -62,7 +59,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
+      final loginMode = result['login_mode'] as String? ?? 'normal';
       final balance = (result['balance'] as num?)?.toDouble() ?? 0.0;
+
+      sessionManager.startSession(
+        userId: userId,
+        loginMode: loginMode,
+        balance: balance,
+      );
 
       Navigator.pushReplacement(
         context,
@@ -76,9 +80,16 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (!mounted) return;
 
+      final errorStr = e.toString();
       setState(() {
-        _errorMessage =
-            e.toString().replaceFirst('Exception: ', '');
+        if (errorStr.contains('Failed to fetch') ||
+            errorStr.contains('Connection refused') ||
+            errorStr.contains('SocketException')) {
+          _errorMessage =
+              'Unable to connect to SENTINEL server. Please ensure the backend is running at http://127.0.0.1:8000.';
+        } else {
+          _errorMessage = errorStr.replaceFirst('Exception: ', '');
+        }
       });
     } finally {
       if (mounted) {
@@ -89,297 +100,265 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  InputDecoration _inputDecoration({
-    required String label,
-    required IconData icon,
-    Widget? suffixIcon,
-  }) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon),
-      suffixIcon: suffixIcon,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(
-          width: 2,
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: 500,
-              ),
+              constraints: const BoxConstraints(maxWidth: 440),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // --------------------------------------------------
-                  // SENTINEL LOGO
-                  // --------------------------------------------------
-
-                  Center(
-                    child: Container(
-                      width: 82,
-                      height: 82,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4054B8),
-                        borderRadius: BorderRadius.circular(22),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
-                            blurRadius: 18,
-                            offset: const Offset(0, 8),
+                  // Top Row with Theme Toggle
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.shield_outlined,
+                            size: 20,
+                            color: colorScheme.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            "SENTINEL BANK",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.2,
+                              color: colorScheme.primary,
+                            ),
                           ),
                         ],
                       ),
-                      child: const Icon(
-                        Icons.shield_rounded,
-                        color: Colors.white,
-                        size: 48,
+                      const ThemeToggleButton(),
+                    ],
+                  ),
+
+                  const SizedBox(height: 36),
+
+                  // Brand Emblem
+                  Center(
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF1E293B)
+                            : const Color(0xFF0F2744),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.12),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.shield_rounded,
+                          color: Colors.white,
+                          size: 38,
+                        ),
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 20),
 
-                  // --------------------------------------------------
-                  // TITLE
-                  // --------------------------------------------------
-
-                  const Text(
+                  Text(
                     'SENTINEL',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
+                      color: colorScheme.onSurface,
                     ),
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
 
-                  const Text(
+                  Text(
                     'Welcome back',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
                     ),
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
 
-                  const Text(
+                  Text(
                     'Sign in to securely access your account.',
                     textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
 
                   const SizedBox(height: 32),
 
-                  // --------------------------------------------------
-                  // USER ID
-                  // --------------------------------------------------
-
+                  // User ID Input
+                  Text(
+                    "User ID",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   TextField(
                     controller: _userIdController,
                     enabled: !_isLoading,
                     textInputAction: TextInputAction.next,
-                    decoration: _inputDecoration(
-                      label: 'User ID',
-                      icon: Icons.person_outline,
+                    style: TextStyle(fontSize: 15, color: colorScheme.onSurface),
+                    decoration: InputDecoration(
+                      hintText: 'Enter your User ID (e.g. tamil)',
+                      prefixIcon: const Icon(Icons.person_outline_rounded, size: 20),
                     ),
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
 
-                  // --------------------------------------------------
-                  // PASSWORD
-                  // --------------------------------------------------
-
+                  // Password Input
+                  Text(
+                    "Password",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   TextField(
                     controller: _passwordController,
-                    enabled: !_isLoading,
                     obscureText: _obscurePassword,
+                    enabled: !_isLoading,
                     textInputAction: TextInputAction.done,
                     onSubmitted: (_) => _login(),
-                    decoration: _inputDecoration(
-                      label: 'Password',
-                      icon: Icons.lock_outline,
+                    style: TextStyle(fontSize: 15, color: colorScheme.onSurface),
+                    decoration: InputDecoration(
+                      hintText: 'Enter your account password',
+                      prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
                       suffixIcon: IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword =
-                                !_obscurePassword;
-                          });
-                        },
                         icon: Icon(
                           _obscurePassword
-                              ? Icons.visibility_off
-                              : Icons.visibility,
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          size: 20,
                         ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 14),
 
-                  // --------------------------------------------------
-                  // ERROR MESSAGE
-                  // --------------------------------------------------
-
-                  if (_errorMessage != null)
+                  // Error Banner
+                  if (_errorMessage != null) ...[
                     Container(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
-                        color: Colors.red.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
+                        color: colorScheme.errorContainer,
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: Colors.red.withValues(alpha: 0.25),
+                          color: colorScheme.error.withValues(alpha: 0.3),
                         ),
                       ),
                       child: Row(
                         children: [
-                          const Icon(
-                            Icons.error_outline,
-                            color: Colors.red,
+                          Icon(
+                            Icons.error_outline_rounded,
+                            color: colorScheme.error,
+                            size: 18,
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               _errorMessage!,
-                              style: const TextStyle(
-                                color: Colors.red,
+                              style: TextStyle(
+                                color: colorScheme.onErrorContainer,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(height: 14),
+                  ],
 
-                  // --------------------------------------------------
-                  // SIGN IN BUTTON
-                  // --------------------------------------------------
+                  const SizedBox(height: 10),
 
-                  SizedBox(
-                    height: 54,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _login,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            const Color(0xFF4054B8),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text(
-                              'SIGN IN',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // --------------------------------------------------
-                  // DIVIDER
-                  // --------------------------------------------------
-
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Divider(),
-                      ),
-                      Padding(
-                        padding:
-                            const EdgeInsets.symmetric(
-                          horizontal: 12,
-                        ),
-                        child: Text(
-                          'OR',
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      const Expanded(
-                        child: Divider(),
-                      ),
-                    ],
+                  // Sign In Action (Micro-interaction button)
+                  AppButton(
+                    text: 'SIGN IN',
+                    isLoading: _isLoading,
+                    onPressed: _login,
                   ),
 
                   const SizedBox(height: 16),
 
-                  // --------------------------------------------------
-                  // SIGN UP
-                  // --------------------------------------------------
-
-                  OutlinedButton(
+                  // Create New Account Action
+                  AppButton(
+                    text: 'CREATE NEW ACCOUNT',
+                    isOutlined: true,
                     onPressed: _isLoading
                         ? null
                         : () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) =>
-                                    const SignupScreen(),
+                                builder: (_) => const SignupScreen(),
                               ),
                             );
                           },
-                    style: OutlinedButton.styleFrom(
-                      minimumSize:
-                          const Size.fromHeight(54),
-                      shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: const Text(
-                      'CREATE NEW ACCOUNT',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 28),
 
-                  const Text(
-                    'Protected by SENTINEL fraud detection',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12,
-                    ),
+                  // Security reassurance footer
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.lock_outline_rounded,
+                        size: 14,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'End-to-End Encrypted Financial Security',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -390,4 +369,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-
