@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'ui/payment_screen.dart';
+import 'ui/login_screen.dart';
 
 void main() {
   runApp(const SentinelApp());
@@ -17,7 +17,7 @@ class SentinelApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
       ),
-      home: const PaymentScreen(),
+      home: const LoginScreen(),
     );
   }
 }
