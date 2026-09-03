@@ -1,0 +1,1762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SENTINEL — Cognitive Defense & Adaptive Safety Banking Engine</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            navy: {
+              900: '#07111F',
+              850: '#0A182E',
+              800: '#0F2744',
+              700: '#1A365D',
+              600: '#2A4365',
+            },
+            crimson: {
+              500: '#EF4444',
+              600: '#DC2626',
+              700: '#B91C1C',
+              800: '#991B1B',
+              900: '#7F1D1D',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+            display: ['Outfit', 'Inter', 'sans-serif'],
+          },
+          animation: {
+            'scanline': 'scanline 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite',
+            'pulse-glow-emerald': 'pulseGlowEmerald 2.5s infinite',
+            'pulse-glow-amber': 'pulseGlowAmber 2s infinite',
+            'pulse-glow-crimson': 'pulseGlowCrimson 1.5s infinite',
+            'ring-flash': 'ringFlash 1.2s ease-in-out infinite',
+            'radar-sweep': 'radarSweep 1.8s ease-in-out infinite',
+          },
+          keyframes: {
+            scanline: {
+              '0%': { transform: 'translateX(-100%)', opacity: '0.8' },
+              '50%': { opacity: '1' },
+              '100%': { transform: 'translateX(250%)', opacity: '0.2' },
+            },
+            pulseGlowEmerald: {
+              '0%, 100%': { boxShadow: '0 0 15px rgba(16, 185, 129, 0.25)' },
+              '50%': { boxShadow: '0 0 25px rgba(16, 185, 129, 0.55)' },
+            },
+            pulseGlowAmber: {
+              '0%, 100%': { boxShadow: '0 0 15px rgba(245, 158, 11, 0.3)' },
+              '50%': { boxShadow: '0 0 30px rgba(245, 158, 11, 0.65)' },
+            },
+            pulseGlowCrimson: {
+              '0%, 100%': { boxShadow: '0 0 18px rgba(239, 68, 68, 0.4)' },
+              '50%': { boxShadow: '0 0 35px rgba(239, 68, 68, 0.85)' },
+            },
+            ringFlash: {
+              '0%, 100%': { transform: 'scale(1)', opacity: '0.9', borderColor: '#F59E0B' },
+              '50%': { transform: 'scale(1.08)', opacity: '1', borderColor: '#EF4444' },
+            },
+            radarSweep: {
+              '0%': { transform: 'rotate(0deg)' },
+              '100%': { transform: 'rotate(360deg)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts: Inter & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- React 18 & Babel for standalone execution (Zero Node setup required) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body {
+      background-color: #07111F;
+      color: #F8FAFC;
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    
+    /* Custom subtle scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0A182E;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1E3A8A;
+      border-radius: 3px;
+    }
+
+    .glass-panel {
+      background: rgba(15, 39, 68, 0.65);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    
+    .glass-card {
+      background: rgba(10, 24, 46, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+    }
+
+    .glass-modal {
+      background: rgba(7, 17, 31, 0.88);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+
+    .laser-line {
+      background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.8), rgba(239, 68, 68, 0.9), transparent);
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Main React Application -->
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useMemo } = React;
+
+    // =========================================================================
+    // 1. SEAMLESS DEMO LEDGER — INITIAL USERS & SYSTEM STATE
+    // =========================================================================
+    const initialUsers = {
+      'senior@upi': {
+        id: 'senior@upi',
+        name: "Devraj Sharma (Senior)",
+        accountNumber: "••• ••• 8492",
+        balance: 50000.00,
+        realBalance: 50000.00,
+        ghostBalance: 1840.00,
+        isDuressActive: false,
+        password: "123",
+        trustedGuardian: {
+          name: "Priya Sharma",
+          relation: "Daughter",
+          phone: "+91 98402 11093",
+          status: 'idle',
+        },
+        history: [
+          {
+            id: 'TXN-902184',
+            type: 'RECEIVE',
+            amount: 45000,
+            from: 'SBI Senior Pension Fund',
+            to: 'senior@upi',
+            counterparty: 'SBI Senior Pension Fund',
+            timestamp: '09:15 AM, Yesterday',
+            status: 'COMPLETED',
+            note: 'Monthly Senior Pension'
+          },
+          {
+            id: 'TXN-872109',
+            type: 'SEND',
+            amount: 3200,
+            from: 'senior@upi',
+            to: 'Tata Power Electricity',
+            counterparty: 'Tata Power Electricity',
+            timestamp: '04:30 PM, 01 Sep',
+            status: 'COMPLETED',
+            note: 'Utility Bill Payment'
+          }
+        ]
+      },
+      'devraj@upi': {
+        id: 'devraj@upi',
+        name: "Devraj Sharma",
+        accountNumber: "••• ••• 8492",
+        balance: 845200.00,
+        realBalance: 845200.00,
+        ghostBalance: 1840.00,
+        isDuressActive: false,
+        password: "1234",
+        trustedGuardian: {
+          name: "Priya Sharma",
+          relation: "Daughter",
+          phone: "+91 98402 11093",
+          status: 'idle',
+        },
+        history: []
+      },
+      'daughter@upi': {
+        id: 'daughter@upi',
+        name: "Priya Sharma (Daughter)",
+        accountNumber: "••• ••• 4192",
+        balance: 10000.00,
+        realBalance: 10000.00,
+        ghostBalance: 10000.00,
+        isDuressActive: false,
+        password: "abc",
+        history: []
+      },
+      'scammer@upi': {
+        id: 'scammer@upi',
+        name: "Unverified Mule (Police Safe Vault)",
+        accountNumber: "••• ••• 9901",
+        balance: 0.00,
+        realBalance: 0.00,
+        ghostBalance: 0.00,
+        isDuressActive: false,
+        password: "000000",
+        history: []
+      }
+    };
+
+    const initialSentinelState = {
+      users: initialUsers,
+      currentUserId: 'senior@upi',
+      threatTelemetry: {
+        isCallActive: false,
+        isScreenShareActive: false,
+        coercionJitterScore: 18,
+        clipboardThreatDetected: false,
+        detectedKeywords: [],
+      },
+      activeEscrow: null,
+      currentScreen: 'home', // 'home' | 'send_money' | 'escrow_view' | 'guardian_portal' | 'threat_matrix'
+    };
+
+    // Blacklist Patterns for Clipboard Quarantine
+    const SCAM_KEYWORDS = [
+      { word: 'CBI', label: 'Government Agency' },
+      { word: 'Police', label: 'Law Enforcement' },
+      { word: 'Arrest', label: 'Coercion / Threat' },
+      { word: 'Customs', label: 'Customs Department' },
+      { word: 'TRAI', label: 'Telecom Authority' },
+      { word: 'Fine', label: 'Extortion Signal' },
+      { word: 'Treasury', label: 'Holding Account' },
+      { word: 'Suspension', label: 'Panic Indicator' },
+      { word: 'Refund', label: 'Reverse PIN Vector' },
+      { word: 'Cashback', label: 'Fraud Hook' },
+      { word: 'KYC', label: 'Credential Phishing' }
+    ];
+
+    function App() {
+      const [state, setState] = useState(initialSentinelState);
+      
+      // Active Input States for Send Money
+      const [recipientVpa, setRecipientVpa] = useState('');
+      const [transferAmount, setTransferAmount] = useState('15000');
+      const [transferMemo, setTransferMemo] = useState('');
+      const [enteredPin, setEnteredPin] = useState('');
+      
+      // UI Modals & Interaction States
+      const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+      const [isAntiInversionModalOpen, setIsAntiInversionModalOpen] = useState(false);
+      const [isSimulationDrawerOpen, setIsSimulationDrawerOpen] = useState(false);
+      const [isScanningClipboard, setIsScanningClipboard] = useState(false);
+      const [isProcessingGhostDelay, setIsProcessingGhostDelay] = useState(false);
+      const [ghostTimeoutError, setGhostTimeoutError] = useState(null);
+      const [reversalNotification, setReversalNotification] = useState(null);
+
+      // Anti-Inversion 5-second countdown timer
+      const [inversionTimer, setInversionTimer] = useState(5);
+      const [hasAcknowledgedInversion, setHasAcknowledgedInversion] = useState(false);
+
+      // Current User Pointer & Active Balance
+      const currentUser = state.users[state.currentUserId] || state.users['devraj@upi'];
+      const currentBalance = currentUser.isDuressActive ? currentUser.ghostBalance : currentUser.realBalance;
+
+      // =========================================================================
+      // 2. DOUBLE-ENTRY ACCOUNTING & DYNAMIC ACCOUNT GENERATION
+      // =========================================================================
+      const processTransfer = (paramA, paramB, note = '', isEscrow = false) => {
+        let recipientId = paramA;
+        let amount = paramB;
+        if (typeof paramA === 'number' || (!isNaN(parseFloat(paramA)) && isNaN(parseFloat(paramB)))) {
+          amount = paramA;
+          recipientId = paramB;
+        }
+
+        const cleanRecipientId = (recipientId || 'unknown@upi').trim().toLowerCase();
+        const numAmount = parseFloat(amount) || 0;
+        const timestamp = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + ', Today';
+        const txId = `TXN-${Math.floor(100000 + Math.random() * 900000)}`;
+
+        setState(prev => {
+          const sender = prev.users[prev.currentUserId];
+          if (!sender) return prev;
+
+          // Block if insufficient funds
+          if (sender.balance < numAmount) {
+            alert("Insufficient funds in account.");
+            return prev;
+          }
+
+          const newUsers = { ...prev.users };
+
+          // DYNAMIC ACCOUNT GENERATION (THE DEMO HACK)
+          // If recipient does not exist in our ledger, generate their profile dynamically!
+          if (!newUsers[cleanRecipientId]) {
+            const handlePart = cleanRecipientId.split('@')[0].replace(/[._-]/g, ' ');
+            const cleanName = handlePart.charAt(0).toUpperCase() + handlePart.slice(1) + " (Payee)";
+            const randAcc = `••• ••• ${Math.floor(1000 + Math.random() * 9000)}`;
+
+            newUsers[cleanRecipientId] = {
+              id: cleanRecipientId,
+              name: cleanName,
+              accountNumber: randAcc,
+              balance: 0,
+              realBalance: 0,
+              ghostBalance: 0,
+              isDuressActive: false,
+              password: "000000",
+              history: [],
+              transactionHistory: []
+            };
+          }
+
+          if (isEscrow) {
+            // Funds buffered in Escrow: deduct from sender, hold pending release
+            const escrowRecord = {
+              id: txId,
+              type: 'SEND',
+              amount: numAmount,
+              to: cleanRecipientId,
+              counterparty: newUsers[cleanRecipientId]?.name || cleanRecipientId,
+              timestamp: timestamp,
+              status: 'ESCROW_HOLDING',
+              note: note || 'Safe Escrow Buffered'
+            };
+
+            const senderUpdatedHistory = [escrowRecord, ...(sender.history || [])];
+
+            newUsers[prev.currentUserId] = {
+              ...sender,
+              balance: sender.balance - numAmount,
+              realBalance: sender.realBalance - numAmount,
+              history: senderUpdatedHistory,
+              transactionHistory: senderUpdatedHistory
+            };
+
+            const newEscrow = {
+              id: txId,
+              amount: numAmount,
+              beneficiary: newUsers[cleanRecipientId]?.name || cleanRecipientId,
+              recipientVpa: cleanRecipientId,
+              remainingSeconds: 1799,
+              status: 'holding'
+            };
+
+            return {
+              ...prev,
+              users: newUsers,
+              activeEscrow: newEscrow,
+              currentScreen: 'escrow_view'
+            };
+          } else {
+            // DIRECT INSTANT TRANSFER: DOUBLE-ENTRY DEBIT & CREDIT
+            const senderDebit = {
+              id: txId,
+              type: 'SEND',
+              amount: numAmount,
+              to: cleanRecipientId,
+              counterparty: newUsers[cleanRecipientId]?.name || cleanRecipientId,
+              timestamp: timestamp,
+              status: 'COMPLETED',
+              note: note || 'Instant UPI Transfer'
+            };
+
+            const recipientCredit = {
+              id: txId,
+              type: 'RECEIVE',
+              amount: numAmount,
+              from: sender.id,
+              counterparty: sender.name,
+              timestamp: timestamp,
+              status: 'COMPLETED',
+              note: note || 'Received via SENTINEL'
+            };
+
+            const senderUpdatedHistory = [senderDebit, ...(sender.history || [])];
+            newUsers[prev.currentUserId] = {
+              ...sender,
+              balance: sender.balance - numAmount,
+              realBalance: sender.realBalance - numAmount,
+              history: senderUpdatedHistory,
+              transactionHistory: senderUpdatedHistory
+            };
+
+            const recipient = newUsers[cleanRecipientId];
+            const recipientUpdatedHistory = [recipientCredit, ...(recipient.history || [])];
+            newUsers[cleanRecipientId] = {
+              ...recipient,
+              balance: recipient.balance + numAmount,
+              realBalance: recipient.realBalance + numAmount,
+              history: recipientUpdatedHistory,
+              transactionHistory: recipientUpdatedHistory
+            };
+
+            return {
+              ...prev,
+              users: newUsers,
+              currentScreen: 'home'
+            };
+          }
+        });
+      };
+
+      // =========================================================================
+      // ESCROW REAL-TIME COUNTDOWN & AUTO-RELEASE EFFECT
+      // =========================================================================
+      useEffect(() => {
+        if (!state.activeEscrow || state.activeEscrow.status !== 'holding') return;
+
+        const interval = setInterval(() => {
+          setState(prev => {
+            if (!prev.activeEscrow || prev.activeEscrow.remainingSeconds <= 1) {
+              // Escrow expired / completed: Credit the recipient account in ledger!
+              const escrow = prev.activeEscrow;
+              const recId = escrow.recipientVpa;
+              const newUsers = { ...prev.users };
+              if (newUsers[recId]) {
+                newUsers[recId] = {
+                  ...newUsers[recId],
+                  realBalance: newUsers[recId].realBalance + escrow.amount,
+                  transactionHistory: [
+                    {
+                      id: escrow.id,
+                      type: 'RECEIVE',
+                      amount: escrow.amount,
+                      counterparty: newUsers[prev.currentUserId]?.name || 'Sender',
+                      timestamp: 'Escrow Released, Today',
+                      status: 'COMPLETED',
+                      note: 'Escrow buffer cleared'
+                    },
+                    ...(newUsers[recId].transactionHistory || [])
+                  ]
+                };
+              }
+              return {
+                ...prev,
+                users: newUsers,
+                activeEscrow: prev.activeEscrow ? { ...prev.activeEscrow, remainingSeconds: 0, status: 'released' } : null
+              };
+            }
+            return {
+              ...prev,
+              activeEscrow: {
+                ...prev.activeEscrow,
+                remainingSeconds: prev.activeEscrow.remainingSeconds - 1
+              }
+            };
+          });
+        }, 1000);
+
+        return () => clearInterval(interval);
+      }, [state.activeEscrow?.status]);
+
+      // Anti-Inversion Modal Countdown timer effect
+      useEffect(() => {
+        if (!isAntiInversionModalOpen) {
+          setInversionTimer(5);
+          setHasAcknowledgedInversion(false);
+          return;
+        }
+
+        if (inversionTimer > 0) {
+          const timer = setTimeout(() => setInversionTimer(t => t - 1), 1000);
+          return () => clearTimeout(timer);
+        }
+      }, [isAntiInversionModalOpen, inversionTimer]);
+
+      // Threat Beacon Ambient Glow Calculation
+      const beaconStatus = useMemo(() => {
+        if (currentUser.isDuressActive) {
+          return {
+            color: 'crimson',
+            label: 'Duress Protocol Engaged',
+            subtext: 'Shadow ledger streaming; guardian alerted',
+            classes: 'animate-pulse-glow-crimson border-red-500/40 bg-red-950/40 text-red-400'
+          };
+        }
+        if (state.threatTelemetry.isCallActive || state.threatTelemetry.isScreenShareActive || state.threatTelemetry.clipboardThreatDetected) {
+          return {
+            color: 'amber',
+            label: 'High-Caution Context Detected',
+            subtext: state.threatTelemetry.isCallActive ? 'Active phone call in progress' : 'Remote screen sharing detected',
+            classes: 'animate-pulse-glow-amber border-amber-500/40 bg-amber-950/40 text-amber-400'
+          };
+        }
+        return {
+          color: 'emerald',
+          label: 'Sentinel Guard Active',
+          subtext: 'Heuristics & Escrow Buffers Nominal',
+          classes: 'animate-pulse-glow-emerald border-emerald-500/40 bg-emerald-950/40 text-emerald-400'
+        };
+      }, [currentUser.isDuressActive, state.threatTelemetry]);
+
+      // Clipboard threat scanner
+      const handlePasteRecipient = (textToPaste) => {
+        setIsScanningClipboard(true);
+        setRecipientVpa(textToPaste);
+
+        setTimeout(() => {
+          setIsScanningClipboard(false);
+          const found = [];
+          SCAM_KEYWORDS.forEach(k => {
+            const regex = new RegExp(`\\b${k.word}\\b`, 'i');
+            if (regex.test(textToPaste) || regex.test(transferMemo)) {
+              found.push(k.word);
+            }
+          });
+
+          if (found.length > 0) {
+            setState(prev => ({
+              ...prev,
+              threatTelemetry: {
+                ...prev.threatTelemetry,
+                clipboardThreatDetected: true,
+                detectedKeywords: found
+              }
+            }));
+          }
+        }, 1200);
+      };
+
+      // Initiate payment evaluation
+      const handleInitiateTransfer = () => {
+        const amount = parseFloat(transferAmount) || 0;
+        const combinedText = `${recipientVpa} ${transferMemo}`.toLowerCase();
+
+        // Anti-Inversion Check: "PIN to Receive / Refund"
+        const hasRefundKeyword = /refund|cashback|win|claim|kyc|bonus|pension/.test(combinedText);
+        if (hasRefundKeyword || combinedText.includes('refund')) {
+          setIsAntiInversionModalOpen(true);
+          return;
+        }
+
+        // Open PIN Entry Modal
+        setIsPinModalOpen(true);
+      };
+
+      // Execute PIN Entry
+      const handlePinSubmit = (pin) => {
+        setIsPinModalOpen(false);
+        const amount = parseFloat(transferAmount) || 0;
+
+        // GHOST MODE TRIGGER (PIN 9999 or user duress active)
+        if (pin === '9999' || currentUser.isDuressActive) {
+          setIsProcessingGhostDelay(true);
+
+          setTimeout(() => {
+            setIsProcessingGhostDelay(false);
+            setGhostTimeoutError({
+              title: "Error 504: Core Banking Gateway Unreachable",
+              message: "Interbank transaction timeout during cryptographic verification. Please try again after 2 hours. No funds were debited.",
+            });
+
+            // Silently engage duress state on active user
+            setState(prev => {
+              const u = prev.users[prev.currentUserId];
+              return {
+                ...prev,
+                users: {
+                  ...prev.users,
+                  [prev.currentUserId]: {
+                    ...u,
+                    isDuressActive: true,
+                    trustedGuardian: u.trustedGuardian ? { ...u.trustedGuardian, status: 'notified' } : undefined
+                  }
+                },
+                threatTelemetry: {
+                  ...prev.threatTelemetry,
+                  coercionJitterScore: 94
+                }
+              };
+            });
+          }, 4000);
+
+          return;
+        }
+
+        // REAL EXECUTION (MASTER PIN 1234 or new user 000000)
+        const isHighValue = amount >= 10000;
+        const isSuspiciousTelemetry = state.threatTelemetry.isCallActive || state.threatTelemetry.isScreenShareActive || state.threatTelemetry.clipboardThreatDetected;
+
+        if (isHighValue || isSuspiciousTelemetry) {
+          // Send to Escrow with dynamic double-entry tracking
+          processTransfer(amount, recipientVpa, transferMemo, true);
+        } else {
+          // Instant direct double-entry transfer
+          processTransfer(amount, recipientVpa, transferMemo, false);
+          alert(`Transfer of ₹${amount.toLocaleString('en-IN')} completed successfully.`);
+        }
+      };
+
+      // Escrow Instant Reversal
+      const handleCancelEscrow = () => {
+        if (!state.activeEscrow) return;
+        const refundAmount = state.activeEscrow.amount;
+        const escrowId = state.activeEscrow.id;
+
+        setState(prev => {
+          const sender = prev.users[prev.currentUserId];
+          const newUsers = { ...prev.users };
+
+          if (sender) {
+            const updatedHistory = (sender.transactionHistory || []).map(tx => {
+              if (tx.id === escrowId) {
+                return { ...tx, status: 'REVERSED', note: 'Cancelled & Immediately Refunded' };
+              }
+              return tx;
+            });
+
+            newUsers[prev.currentUserId] = {
+              ...sender,
+              realBalance: sender.realBalance + refundAmount,
+              trustedGuardian: sender.trustedGuardian ? { ...sender.trustedGuardian, status: 'rejected' } : undefined,
+              transactionHistory: updatedHistory
+            };
+          }
+
+          return {
+            ...prev,
+            users: newUsers,
+            activeEscrow: null,
+            currentScreen: 'home'
+          };
+        });
+
+        setReversalNotification({
+          amount: refundAmount,
+          refId: escrowId
+        });
+      };
+
+      // Format currency
+      const formatINR = (num) => {
+        return new Intl.NumberFormat('en-IN', {
+          style: 'currency',
+          currency: 'INR',
+          maximumFractionDigits: 2
+        }).format(num || 0);
+      };
+
+      // Format Escrow MM:SS
+      const formatTime = (secs) => {
+        const m = Math.floor(secs / 60);
+        const s = secs % 60;
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+      };
+
+      return (
+        <div className="min-h-screen bg-navy-900 text-slate-100 flex flex-col items-center p-3 sm:p-6 relative selection:bg-blue-600 selection:text-white">
+
+          {/* ========================================================================= */}
+          {/* FLOATING DEMO SIMULATION DRAWER (WITH USER CONTEXT SWITCHER) */}
+          {/* ========================================================================= */}
+          <div className="fixed top-4 right-4 z-50">
+            <button
+              onClick={() => setIsSimulationDrawerOpen(prev => !prev)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-full glass-panel text-xs font-semibold tracking-wide border border-blue-500/30 text-blue-300 hover:text-white hover:bg-blue-900/40 hover:brightness-110 active:scale-95 transition-all duration-150 ease-out shadow-lg hover:shadow-blue-500/20"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-ping"></span>
+              <span>Demo Scenario Drawer</span>
+              <svg className={`w-3.5 h-3.5 transition-transform duration-150 ${isSimulationDrawerOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {isSimulationDrawerOpen && (
+              <div className="absolute right-0 mt-2 w-80 sm:w-96 glass-modal border border-white/10 rounded-2xl p-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                    </svg>
+                    <h4 className="text-sm font-bold text-white tracking-wide">Live Hackathon Controls</h4>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono">1-CLICK TEST</span>
+                </div>
+
+                <div className="mt-4 space-y-3 text-xs">
+
+                  {/* USER CONTEXT SWITCHER (THE DEMO HACK) */}
+                  <div className="p-3 rounded-xl bg-blue-950/40 border border-blue-500/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-blue-200">Active User Context (Demo Switcher)</div>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/30 text-blue-200 font-mono font-bold">LEDGER</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300">
+                      Switch account to verify that money arrived on the recipient's side:
+                    </p>
+                    <select
+                      value={state.currentUserId}
+                      onChange={(e) => {
+                        setState(prev => ({
+                          ...prev,
+                          currentUserId: e.target.value
+                        }));
+                      }}
+                      className="w-full bg-navy-900 border border-blue-500/50 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-blue-400 hover:brightness-110 active:scale-95 transition-all duration-150 ease-out"
+                    >
+                      {Object.keys(state.users).map(uId => {
+                        const u = state.users[uId];
+                        return (
+                          <option key={uId} value={uId}>
+                            {u.name} — {formatINR(u.realBalance)}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+                      <span>Default PIN for new users: <strong className="text-white font-mono">000000</strong></span>
+                      <span className="text-emerald-400 font-bold">{Object.keys(state.users).length} Accounts Active</span>
+                    </div>
+                  </div>
+
+                  {/* Toggle Active Call */}
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/5">
+                    <div>
+                      <div className="font-semibold text-slate-200">Active Phone Call</div>
+                      <div className="text-[11px] text-slate-400">Simulate coercion pressure (+30 pts)</div>
+                    </div>
+                    <button
+                      onClick={() => setState(p => ({
+                        ...p,
+                        threatTelemetry: { ...p.threatTelemetry, isCallActive: !p.threatTelemetry.isCallActive }
+                      }))}
+                      className={`px-3 py-1.5 rounded-lg font-bold hover:brightness-110 active:scale-95 transition-all duration-150 ease-out ${state.threatTelemetry.isCallActive ? 'bg-amber-500 text-black shadow-md shadow-amber-500/30' : 'bg-slate-700 text-slate-300'}`}
+                    >
+                      {state.threatTelemetry.isCallActive ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+
+                  {/* Toggle Screen Share */}
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/5">
+                    <div>
+                      <div className="font-semibold text-slate-200">Screen Share (AnyDesk)</div>
+                      <div className="text-[11px] text-slate-400">Remote control vector (+40 pts)</div>
+                    </div>
+                    <button
+                      onClick={() => setState(p => ({
+                        ...p,
+                        threatTelemetry: { ...p.threatTelemetry, isScreenShareActive: !p.threatTelemetry.isScreenShareActive }
+                      }))}
+                      className={`px-3 py-1.5 rounded-lg font-bold hover:brightness-110 active:scale-95 transition-all duration-150 ease-out ${state.threatTelemetry.isScreenShareActive ? 'bg-red-500 text-white shadow-md shadow-red-500/30' : 'bg-slate-700 text-slate-300'}`}
+                    >
+                      {state.threatTelemetry.isScreenShareActive ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+
+                  {/* Inject Scam Clipboard */}
+                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 space-y-2">
+                    <div className="font-semibold text-slate-200">Inject Threat Clipboard Text</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => {
+                          setState(p => ({ ...p, currentScreen: 'send_money' }));
+                          handlePasteRecipient('cbi_safekeep_holding@upi');
+                          setTransferMemo('Refund Clearance CBI Fine');
+                        }}
+                        className="p-2 text-left rounded-lg bg-red-950/60 hover:bg-red-900/80 hover:brightness-110 active:scale-95 border border-red-500/30 text-red-200 text-[11px] transition-all duration-150 ease-out"
+                      >
+                        🚨 <strong>CBI Digital Arrest</strong>
+                        <div className="text-[10px] text-red-300/70 truncate">cbi_safekeep@upi</div>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setState(p => ({ ...p, currentScreen: 'send_money' }));
+                          handlePasteRecipient('electricity_instant_refund@upi');
+                          setTransferMemo('Claim 15000 Electricity Refund');
+                        }}
+                        className="p-2 text-left rounded-lg bg-amber-950/60 hover:bg-amber-900/80 hover:brightness-110 active:scale-95 border border-amber-500/30 text-amber-200 text-[11px] transition-all duration-150 ease-out"
+                      >
+                        ⚡ <strong>Fake Refund Scam</strong>
+                        <div className="text-[10px] text-amber-300/70 truncate">electricity_refund@upi</div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Duress vs Normal PIN Quick Actions */}
+                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 space-y-1.5">
+                    <div className="font-semibold text-slate-200">Direct PIN Mode Switch</div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setState(p => {
+                          const u = p.users[p.currentUserId];
+                          return {
+                            ...p,
+                            users: { ...p.users, [p.currentUserId]: { ...u, isDuressActive: false } }
+                          };
+                        })}
+                        className={`flex-1 py-1.5 rounded-lg font-semibold text-[11px] hover:brightness-110 active:scale-95 transition-all duration-150 ease-out ${!currentUser.isDuressActive ? 'bg-emerald-500 text-black' : 'bg-slate-700 text-slate-300'}`}
+                      >
+                        Normal PIN: 1234
+                      </button>
+                      <button
+                        onClick={() => setState(p => {
+                          const u = p.users[p.currentUserId];
+                          return {
+                            ...p,
+                            users: { ...p.users, [p.currentUserId]: { ...u, isDuressActive: true } }
+                          };
+                        })}
+                        className={`flex-1 py-1.5 rounded-lg font-semibold text-[11px] hover:brightness-110 active:scale-95 transition-all duration-150 ease-out ${currentUser.isDuressActive ? 'bg-red-600 text-white' : 'bg-slate-700 text-slate-300'}`}
+                      >
+                        Duress PIN: 9999
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Switch to Guardian Portal */}
+                  <button
+                    onClick={() => setState(p => ({ ...p, currentScreen: 'guardian_portal' }))}
+                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 hover:brightness-110 text-white font-bold tracking-wide flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 active:scale-95 transition-all duration-150 ease-out"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    <span>View Daughter's Guardian Device</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ========================================================================= */}
+          {/* MAIN BANKING CONTAINER (480px MAX FOR AUTHENTIC MOBILE APP EXPERIENCE) */}
+          {/* ========================================================================= */}
+          <div className="w-full max-w-md flex flex-col flex-1 pb-10">
+
+            {/* --- 1. HEADER & STATUS BEACON --- */}
+            <header className="flex items-center justify-between py-4 mb-3 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-navy-800 flex items-center justify-center font-bold text-white shadow-md border border-white/10">
+                  <svg className="w-5 h-5 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">SENTINEL BANK</div>
+                  <h1 className="text-base font-extrabold tracking-tight text-white">{currentUser.name}</h1>
+                </div>
+              </div>
+
+              {/* Navigation Tabs with Squish & Spring tactile feedback */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setState(p => ({ ...p, currentScreen: 'home' }))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold hover:brightness-110 active:scale-95 transition-all duration-150 ease-out ${state.currentScreen === 'home' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                >
+                  Home
+                </button>
+                <button
+                  onClick={() => setState(p => ({ ...p, currentScreen: 'send_money' }))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold hover:brightness-110 active:scale-95 transition-all duration-150 ease-out ${state.currentScreen === 'send_money' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                >
+                  Pay
+                </button>
+                <button
+                  onClick={() => setState(p => ({ ...p, currentScreen: 'guardian_portal' }))}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold hover:brightness-110 active:scale-95 transition-all duration-150 ease-out ${state.currentScreen === 'guardian_portal' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                  title="Guardian Portal"
+                >
+                  🛡️
+                </button>
+              </div>
+            </header>
+
+            {/* --- STATUS BEACON BAR --- */}
+            <div className={`w-full mb-4 p-3 rounded-2xl border transition-all duration-300 flex items-center justify-between ${beaconStatus.classes}`}>
+              <div className="flex items-center gap-3">
+                <span className="relative flex h-3 w-3">
+                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${currentUser.isDuressActive ? 'bg-red-400' : state.threatTelemetry.isCallActive ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
+                  <span className={`relative inline-flex rounded-full h-3 w-3 ${currentUser.isDuressActive ? 'bg-red-500' : state.threatTelemetry.isCallActive ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
+                </span>
+                <div>
+                  <div className="text-xs font-bold leading-tight tracking-wide">{beaconStatus.label}</div>
+                  <div className="text-[11px] opacity-80">{beaconStatus.subtext}</div>
+                </div>
+              </div>
+              <div className="text-[10px] font-mono uppercase px-2 py-1 rounded bg-black/20 font-bold tracking-wider">
+                {currentUser.isDuressActive ? 'SHADOW' : 'ONLINE'}
+              </div>
+            </div>
+
+            {/* Reversal Notification Banner if user cancelled escrow */}
+            {reversalNotification && (
+              <div className="w-full mb-4 p-4 rounded-2xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-200 animate-in fade-in slide-in-from-top-4 duration-300 flex items-start gap-3 shadow-xl">
+                <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div className="flex-1 text-xs">
+                  <div className="font-bold text-sm text-emerald-100">Transfer Successfully Reversed</div>
+                  <div className="mt-0.5 text-emerald-300/80">
+                    {formatINR(reversalNotification.amount)} has been immediately credited back to your account. No fees or penalties applied.
+                  </div>
+                  <div className="mt-1 font-mono text-[10px] text-emerald-400">Escrow ID: {reversalNotification.refId}</div>
+                </div>
+                <button
+                  onClick={() => setReversalNotification(null)}
+                  className="text-emerald-400 hover:text-white text-xs font-bold active:scale-95 transition-transform"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* SCREEN 1: HOME DASHBOARD */}
+            {/* ========================================================================= */}
+            {state.currentScreen === 'home' && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                
+                {/* Main Account Card */}
+                <div className="relative overflow-hidden rounded-3xl p-6 glass-panel border border-white/10 shadow-2xl">
+                  {/* Subtle background decoration */}
+                  <div className="absolute -right-10 -bottom-10 w-44 h-44 rounded-full bg-blue-600/10 blur-2xl pointer-events-none"></div>
+                  
+                  <div className="flex items-center justify-between text-xs text-slate-400 font-medium mb-1">
+                    <span>Primary Savings Account</span>
+                    <span className="font-mono tracking-widest text-slate-300">{currentUser.accountNumber}</span>
+                  </div>
+
+                  <div className="text-xs text-slate-400 mb-1">Available Balance</div>
+                  <div className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white flex items-baseline gap-2">
+                    <span>{formatINR(currentBalance)}</span>
+                    {currentUser.isDuressActive && (
+                      <span className="text-[11px] font-mono uppercase text-slate-500 font-semibold">
+                        (Active)
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                      <span className="text-slate-300">
+                        {currentUser.trustedGuardian ? (
+                          <>Guardian Protected: <strong>{currentUser.trustedGuardian.name}</strong></>
+                        ) : (
+                          <>Account Status: <strong className="text-emerald-400">Active & Monitored</strong></>
+                        )}
+                      </span>
+                    </div>
+                    {currentUser.trustedGuardian && (
+                      <button
+                        onClick={() => setState(p => ({ ...p, currentScreen: 'guardian_portal' }))}
+                        className="text-blue-400 hover:text-blue-300 font-semibold active:scale-95 transition-transform"
+                      >
+                        Safe Limits ➔
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Quick Actions (Tactile Squish & Spring) */}
+                <div className="grid grid-cols-4 gap-2">
+                  <button
+                    onClick={() => setState(p => ({ ...p, currentScreen: 'send_money' }))}
+                    className="p-3.5 rounded-2xl glass-card text-center hover:bg-white/10 hover:brightness-110 active:scale-95 transition-all duration-150 ease-out flex flex-col items-center gap-2"
+                  >
+                    <div className="w-11 h-11 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
+                    </div>
+                    <span className="text-[11px] font-semibold text-slate-200">Pay UPI</span>
+                  </button>
+
+                  <button
+                    onClick={() => alert("Simulating QR scanner with on-device camera threat filter...")}
+                    className="p-3.5 rounded-2xl glass-card text-center hover:bg-white/10 hover:brightness-110 active:scale-95 transition-all duration-150 ease-out flex flex-col items-center gap-2"
+                  >
+                    <div className="w-11 h-11 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                      </svg>
+                    </div>
+                    <span className="text-[11px] font-semibold text-slate-200">Scan QR</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (state.activeEscrow) {
+                        setState(p => ({ ...p, currentScreen: 'escrow_view' }));
+                      } else {
+                        alert("No active transaction in Escrow right now. High-risk transactions (>₹10,000 or during active calls) automatically enter the 30-Minute Escrow buffer.");
+                      }
+                    }}
+                    className={`p-3.5 rounded-2xl glass-card text-center hover:bg-white/10 hover:brightness-110 active:scale-95 transition-all duration-150 ease-out flex flex-col items-center gap-2 relative ${state.activeEscrow ? 'border-amber-500/50' : ''}`}
+                  >
+                    {state.activeEscrow && (
+                      <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-500 animate-ping"></span>
+                    )}
+                    <div className="w-11 h-11 rounded-xl bg-amber-600/20 text-amber-400 flex items-center justify-center">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <span className="text-[11px] font-semibold text-slate-200">Escrow</span>
+                  </button>
+
+                  <button
+                    onClick={() => setState(p => ({ ...p, currentScreen: 'guardian_portal' }))}
+                    className="p-3.5 rounded-2xl glass-card text-center hover:bg-white/10 hover:brightness-110 active:scale-95 transition-all duration-150 ease-out flex flex-col items-center gap-2"
+                  >
+                    <div className="w-11 h-11 rounded-xl bg-teal-600/20 text-teal-400 flex items-center justify-center">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                    </div>
+                    <span className="text-[11px] font-semibold text-slate-200">Guardian</span>
+                  </button>
+                </div>
+
+                {/* Active Escrow Highlight Banner if one is running */}
+                {state.activeEscrow && state.activeEscrow.status === 'holding' && (
+                  <div
+                    onClick={() => setState(p => ({ ...p, currentScreen: 'escrow_view' }))}
+                    className="p-4 rounded-2xl bg-amber-950/50 border border-amber-500/40 hover:border-amber-400 hover:brightness-110 active:scale-95 transition-all duration-150 ease-out cursor-pointer shadow-lg flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                        <svg className="w-5 h-5 animate-spin" style={{ animationDuration: '8s' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-amber-300">Active Escrow Holding: {formatINR(state.activeEscrow.amount)}</div>
+                        <div className="text-[11px] text-amber-400/80">Buffer Countdown: <strong>{formatTime(state.activeEscrow.remainingSeconds)}</strong> remaining</div>
+                      </div>
+                    </div>
+                    <span className="text-xs text-amber-300 font-bold underline">Review ➔</span>
+                  </div>
+                )}
+
+                {/* RECENT PROTECTION & TRANSACTION LEDGER */}
+                <div className="p-5 rounded-3xl glass-card space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-white uppercase tracking-wider text-[11px]">Recent Protection & Transaction Ledger</span>
+                    <span className="text-blue-400 font-mono text-[11px]">{currentUser.transactionHistory?.length || 0} Records</span>
+                  </div>
+
+                  <div className="space-y-2 text-xs">
+                    {currentUser.transactionHistory && currentUser.transactionHistory.length > 0 ? (
+                      currentUser.transactionHistory.slice(0, 5).map(tx => (
+                        <div key={tx.id} className="p-3 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between hover:bg-white/10 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${tx.type === 'RECEIVE' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                              {tx.type === 'RECEIVE' ? '↓' : '↑'}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-slate-200">{tx.counterparty}</div>
+                              <div className="text-[10px] text-slate-400">{tx.timestamp} • {tx.note || tx.id}</div>
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <div className={`font-bold text-sm ${tx.type === 'RECEIVE' ? 'text-emerald-400' : 'text-slate-100'}`}>
+                              {tx.type === 'RECEIVE' ? '+' : '-'}{formatINR(tx.amount)}
+                            </div>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                              tx.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-300' :
+                              tx.status === 'ESCROW_HOLDING' ? 'bg-amber-500/20 text-amber-300' : 'bg-purple-500/20 text-purple-300'
+                            }`}>
+                              {tx.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-4 rounded-xl bg-white/5 text-center text-slate-400 text-xs">
+                        No transactions recorded for this profile yet.<br />
+                        <span className="text-blue-400 font-semibold">Initiate a transfer above to test closed-loop double entry!</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Cognitive Defense Overview Card */}
+                <div className="p-5 rounded-3xl glass-card space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-white uppercase tracking-wider text-[11px]">Active Defensive Layers</span>
+                    <span className="text-emerald-400 font-semibold">4 / 4 Engaged</span>
+                  </div>
+
+                  <div className="space-y-2.5 text-xs">
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/5">
+                      <span className="text-slate-300">Reverse PIN Intent Interceptor</span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold text-[10px]">ARMED</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/5">
+                      <span className="text-slate-300">30-Min Dynamic Safety Escrow</span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold text-[10px]">ARMED</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/5">
+                      <span className="text-slate-300">Guardian Remote Dual-Custody</span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold text-[10px]">CONNECTED</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/5">
+                      <span className="text-slate-300">Duress PIN 9999 Shadow Ledger</span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold text-[10px]">STEALTH</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* SCREEN 2: SEND MONEY (TRANSFER FORMULATION + CLIPBOARD RADAR) */}
+            {/* ========================================================================= */}
+            {state.currentScreen === 'send_money' && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-white">Instant Payment</h2>
+                  <button
+                    onClick={() => setState(p => ({ ...p, currentScreen: 'home' }))}
+                    className="text-xs text-slate-400 hover:text-white active:scale-95 transition-transform"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                {/* Recipient Input with Shimmer Laser Radar Scanline */}
+                <div className="p-4 rounded-2xl glass-card space-y-2 relative overflow-hidden">
+                  {/* Laser Scanline Effect */}
+                  {isScanningClipboard && (
+                    <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
+                      <div className="w-1/2 h-full laser-line animate-scanline"></div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between text-xs text-slate-300">
+                    <label className="font-semibold">Payee UPI ID or Number</label>
+                    <button
+                      onClick={() => handlePasteRecipient('police_safe_vault@upi')}
+                      className="text-[11px] text-blue-400 hover:text-blue-300 hover:brightness-110 active:scale-95 font-semibold flex items-center gap-1 transition-all duration-150 ease-out"
+                    >
+                      <span>📋 Paste from Clipboard</span>
+                    </button>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={recipientVpa}
+                      onChange={(e) => {
+                        setRecipientVpa(e.target.value);
+                        // Trigger live scan check
+                        const found = [];
+                        SCAM_KEYWORDS.forEach(k => {
+                          if (new RegExp(`\\b${k.word}\\b`, 'i').test(e.target.value)) {
+                            found.push(k.word);
+                          }
+                        });
+                        setState(p => ({
+                          ...p,
+                          threatTelemetry: {
+                            ...p.threatTelemetry,
+                            clipboardThreatDetected: found.length > 0,
+                            detectedKeywords: found
+                          }
+                        }));
+                      }}
+                      placeholder="e.g. daughter@upi, judge@upi, or any custom id"
+                      className="w-full bg-navy-900/90 border border-white/15 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
+                    />
+                  </div>
+
+                  {/* Clipboard Threat Radar Warning Card if keywords detected */}
+                  {state.threatTelemetry.clipboardThreatDetected && (
+                    <div className="p-3.5 rounded-xl bg-red-950/70 border border-red-500/50 text-xs text-red-200 space-y-2 animate-in fade-in duration-300">
+                      <div className="flex items-center gap-2 font-bold text-red-400">
+                        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <span>External Threat Radar Alert</span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed text-red-200/90">
+                        External Paste Detected: This recipient details contain suspicious terminology commonly used in coercion extortion. <strong>Legitimate government bodies never collect fines or bail via personal UPI IDs.</strong>
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {state.threatTelemetry.detectedKeywords.map((kw, i) => (
+                          <span key={i} className="px-2 py-0.5 rounded-md bg-red-800 text-white text-[10px] font-mono font-bold tracking-wide">
+                            🚩 Flagged: {kw}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Amount Formulation & Impact Visualizer */}
+                <div className="p-5 rounded-2xl glass-card space-y-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300 block mb-1">Transfer Amount</label>
+                    <div className="relative flex items-center">
+                      <span className="text-2xl font-bold text-slate-400 mr-2">₹</span>
+                      <input
+                        type="number"
+                        value={transferAmount}
+                        onChange={(e) => setTransferAmount(e.target.value)}
+                        className="w-full bg-transparent text-3xl font-extrabold text-white focus:outline-none"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Preset Amount Chips (Tactile Squish & Spring) */}
+                  <div className="flex gap-2">
+                    {['500', '2000', '15000', '50000'].map(amt => (
+                      <button
+                        key={amt}
+                        onClick={() => setTransferAmount(amt)}
+                        className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 hover:brightness-110 active:scale-95 text-xs font-semibold text-slate-300 transition-all duration-150 ease-out"
+                      >
+                        +₹{parseInt(amt).toLocaleString('en-IN')}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Purpose / Note */}
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300 block mb-1">Transfer Note / Memo</label>
+                    <input
+                      type="text"
+                      value={transferMemo}
+                      onChange={(e) => setTransferMemo(e.target.value)}
+                      placeholder="e.g. Monthly Grocery or Pension Refund"
+                      className="w-full bg-navy-900/90 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  {/* REAL-TIME IMPACT VISUALIZER */}
+                  <div className="pt-3 border-t border-white/10 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400">Balance after this payment:</span>
+                      <span className="font-bold text-white">
+                        {formatINR(Math.max(0, currentBalance - (parseFloat(transferAmount) || 0)))}
+                      </span>
+                    </div>
+
+                    {/* Dynamic Gauge Bar */}
+                    <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 transition-all duration-300"
+                        style={{
+                          width: `${Math.min(100, Math.max(0, ((currentBalance - (parseFloat(transferAmount) || 0)) / (currentBalance || 1)) * 100))}%`
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Primary Action Button (Tactile Squish & Spring active:scale-[0.97]) */}
+                <button
+                  onClick={handleInitiateTransfer}
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 hover:brightness-110 text-white font-extrabold text-base tracking-wide shadow-xl shadow-blue-600/30 hover:shadow-blue-500/40 active:scale-[0.97] active:bg-blue-800 transition-all duration-150 ease-out flex items-center justify-center gap-2"
+                >
+                  <span>Send Money Securely</span>
+                  <span>➔</span>
+                </button>
+
+                {/* Inline Hackathon Demo Switcher for Judges */}
+                <div className="p-4 rounded-2xl glass-card space-y-2 border border-white/10">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold text-slate-200">Hackathon Demo Switcher</h3>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono">LIVE LEDGER</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Type any arbitrary UPI ID above (e.g. <span className="text-blue-300 font-mono font-bold">judge1@upi</span>) and send ₹5,000. Then select them below to prove the money arrived instantly:
+                  </p>
+                  <select 
+                    className="w-full p-2.5 rounded-xl bg-navy-900 border border-blue-500/40 text-white text-xs font-semibold focus:outline-none focus:border-blue-400 hover:brightness-110 active:scale-[0.97] transition-all duration-150 ease-out"
+                    value={state.currentUserId}
+                    onChange={(e) => setState(p => ({ ...p, currentUserId: e.target.value }))}
+                  >
+                    {Object.keys(state.users).map(id => (
+                      <option key={id} value={id}>
+                        {id} (Bal: ₹{state.users[id].balance.toLocaleString('en-IN')})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* SCREEN 3: 30-MINUTE DYNAMIC SAFETY ESCROW VIEW */}
+            {/* ========================================================================= */}
+            {state.currentScreen === 'escrow_view' && state.activeEscrow && (
+              <div className="space-y-5 animate-in fade-in duration-200">
+                <div className="text-center space-y-1">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span>Safely Buffered in Bank Escrow</span>
+                  </div>
+                  <h2 className="text-xl font-bold text-white">30-Minute Protection Window</h2>
+                  <p className="text-xs text-slate-400 max-w-xs mx-auto">
+                    Funds are secured in the bank's safety buffer. They have NOT been released to the recipient yet.
+                  </p>
+                </div>
+
+                {/* SVG CIRCULAR COUNTDOWN TIMER */}
+                <div className="flex flex-col items-center justify-center py-4">
+                  <div className="relative w-48 h-48 flex items-center justify-center">
+                    {/* SVG Progress Ring */}
+                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                      {/* Track */}
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="42"
+                        stroke="currentColor"
+                        strokeWidth="7"
+                        className="text-slate-800"
+                        fill="transparent"
+                      />
+                      {/* Animated Stroke */}
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="42"
+                        stroke="currentColor"
+                        strokeWidth="7"
+                        className="text-amber-500 transition-all duration-1000"
+                        strokeDasharray={264}
+                        strokeDashoffset={264 - (264 * (state.activeEscrow.remainingSeconds / 1800))}
+                        strokeLinecap="round"
+                        fill="transparent"
+                      />
+                    </svg>
+
+                    {/* Central Countdown Text */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                      <span className="text-3xl font-extrabold font-mono text-white tracking-wider">
+                        {formatTime(state.activeEscrow.remainingSeconds)}
+                      </span>
+                      <span className="text-[10px] text-amber-300 font-semibold uppercase tracking-widest mt-1">
+                        Reversal Window
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Escrow Transaction Summary Card */}
+                <div className="p-5 rounded-2xl glass-card space-y-3 text-xs">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <span className="text-slate-400">Escrow ID</span>
+                    <span className="font-mono text-slate-200">{state.activeEscrow.id}</span>
+                  </div>
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <span className="text-slate-400">Pending Amount</span>
+                    <span className="font-bold text-lg text-white">{formatINR(state.activeEscrow.amount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <span className="text-slate-400">Recipient VPA</span>
+                    <span className="font-semibold text-slate-200 truncate max-w-[180px]">{state.activeEscrow.beneficiary}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Guardian Alert</span>
+                    <span className="text-emerald-400 font-semibold">
+                      {currentUser.trustedGuardian ? `Notified (${currentUser.trustedGuardian.name})` : 'Secured'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Primary Action Glow: Cancel Transfer with emerald/red glow & tactile squish */}
+                <button
+                  onClick={handleCancelEscrow}
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 hover:brightness-110 text-white font-extrabold text-base tracking-wide shadow-xl shadow-red-600/30 hover:shadow-2xl hover:shadow-red-500/40 active:scale-95 transition-all duration-150 ease-out flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Cancel Transfer & Return Funds Immediately</span>
+                </button>
+
+                <button
+                  onClick={() => setState(p => ({ ...p, currentScreen: 'home' }))}
+                  className="w-full py-3 rounded-xl glass-panel text-slate-300 hover:text-white hover:brightness-110 active:scale-95 text-xs font-semibold transition-all duration-150 ease-out"
+                >
+                  Return to Dashboard
+                </button>
+              </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* SCREEN 4: GUARDIAN REMOTE AUTHORIZATION PORTAL */}
+            {/* ========================================================================= */}
+            {state.currentScreen === 'guardian_portal' && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider">Simulated Remote Device</div>
+                    <h2 className="text-lg font-bold text-white">Guardian Remote Gateway</h2>
+                  </div>
+                  <button
+                    onClick={() => setState(p => ({ ...p, currentScreen: 'home' }))}
+                    className="text-xs text-slate-400 hover:text-white active:scale-95 transition-transform"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                {/* Smartphone Device Frame for Guardian */}
+                <div className="p-5 rounded-3xl bg-indigo-950/40 border border-indigo-500/30 shadow-2xl space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-indigo-500/20">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
+                        PS
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-white">Priya Sharma</div>
+                        <div className="text-[10px] text-indigo-300">Dual-Custody Gatekeeper (Daughter)</div>
+                      </div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[10px] font-semibold">REMOTE ACTIVE</span>
+                  </div>
+
+                  {/* Priority Alert Card */}
+                  <div className="p-4 rounded-2xl bg-navy-900/90 border border-amber-500/40 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                        High-Risk Transaction Authorization
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400">Just Now</span>
+                    </div>
+
+                    <p className="text-xs text-slate-200">
+                      <strong>Devraj Sharma (Father)</strong> is attempting an anomalous transfer to an unverified beneficiary:
+                    </p>
+
+                    <div className="p-3 rounded-xl bg-white/5 space-y-1.5 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Transfer Amount:</span>
+                        <span className="font-extrabold text-white text-sm">₹50,000.00</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Beneficiary UPI:</span>
+                        <span className="font-mono text-slate-200">safe_vault_police@upi</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Beneficiary Age:</span>
+                        <span className="text-red-400 font-semibold">Created 3 days ago (Rajasthan)</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Father's Device Status:</span>
+                        <span className="text-amber-400 font-semibold">Active Cellular Call Detected</span>
+                      </div>
+                    </div>
+
+                    {/* Dual Action Buttons (Tactile Squish & Spring) */}
+                    <div className="grid grid-cols-2 gap-2 pt-2">
+                      <button
+                        onClick={() => {
+                          alert("Guardian Authorized: Transaction cleared to proceed through normal clearing schedule.");
+                          setState(p => {
+                            const u = p.users[p.currentUserId];
+                            return {
+                              ...p,
+                              users: {
+                                ...p.users,
+                                [p.currentUserId]: {
+                                  ...u,
+                                  trustedGuardian: u.trustedGuardian ? { ...u.trustedGuardian, status: 'approved' } : undefined
+                                }
+                              },
+                              currentScreen: 'home'
+                            };
+                          });
+                        }}
+                        className="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 hover:brightness-110 active:scale-95 text-slate-200 text-xs font-bold transition-all duration-150 ease-out text-center"
+                      >
+                        Authorize Transfer
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setState(p => {
+                            const u = p.users[p.currentUserId];
+                            return {
+                              ...p,
+                              users: {
+                                ...p.users,
+                                [p.currentUserId]: {
+                                  ...u,
+                                  trustedGuardian: u.trustedGuardian ? { ...u.trustedGuardian, status: 'rejected' } : undefined
+                                }
+                              },
+                              currentScreen: 'home'
+                            };
+                          });
+                          setGhostTimeoutError({
+                            title: "Transaction Paused by Bank Clearing",
+                            message: "Transaction failed due to interbank clearing schedule. Funds remain safely in your account. No fees debited."
+                          });
+                        }}
+                        className="py-3 rounded-xl bg-red-600 hover:bg-red-500 hover:brightness-110 active:scale-95 text-white text-xs font-bold shadow-lg shadow-red-600/30 transition-all duration-150 ease-out text-center"
+                      >
+                        Block & Lock Account
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
+
+          {/* ========================================================================= */}
+          {/* MODAL 1: "ANTI-INVERSION" COGNITIVE BARRIER (KILLING "PIN TO RECEIVE") */}
+          {/* ========================================================================= */}
+          {isAntiInversionModalOpen && (
+            <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+              <div className="w-full max-w-md rounded-3xl bg-navy-900 border-2 border-red-500/70 p-6 shadow-2xl shadow-red-950/80 space-y-5 animate-in zoom-in-95 duration-200">
+                
+                {/* Flashing Amber-to-Red Border Ring Icon */}
+                <div className="flex justify-center">
+                  <div className="w-20 h-20 rounded-full border-4 animate-ring-flash flex items-center justify-center bg-red-950/40">
+                    <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Massive Warning Typography */}
+                <div className="text-center space-y-2">
+                  <div className="inline-block px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-xs font-bold tracking-wider uppercase">
+                    Critical Cognitive Safety Intercept
+                  </div>
+                  <h3 className="text-2xl font-black text-white leading-tight">
+                    YOU ARE SENDING MONEY, NOT RECEIVING IT.
+                  </h3>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    You <strong>NEVER</strong> enter your UPI PIN to receive money or refunds. Entering your PIN authorizes money to permanently leave your bank account.
+                  </p>
+                </div>
+
+                {/* Exact Mathematical Impact Display */}
+                <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span>Current Bank Balance:</span>
+                    <span className="font-semibold text-slate-200">{formatINR(currentBalance)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-red-400 font-bold">
+                    <span>Amount Being Deducted:</span>
+                    <span>- {formatINR(parseFloat(transferAmount) || 0)}</span>
+                  </div>
+                  <div className="pt-2 border-t border-white/10 flex items-center justify-between font-bold text-sm text-white">
+                    <span>New Balance Will Be:</span>
+                    <span>{formatINR(Math.max(0, currentBalance - (parseFloat(transferAmount) || 0)))}</span>
+                  </div>
+                </div>
+
+                {/* Explicit Friction Checkbox / Slide */}
+                <label className="flex items-start gap-3 p-3 rounded-xl bg-white/5 border border-white/10 cursor-pointer text-xs select-none hover:bg-white/10 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={hasAcknowledgedInversion}
+                    onChange={(e) => setHasAcknowledgedInversion(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 rounded border-red-500 text-red-600 focus:ring-red-500"
+                  />
+                  <span className="text-slate-300 leading-relaxed font-medium">
+                    I explicitly understand that <strong>{formatINR(parseFloat(transferAmount) || 0)}</strong> will leave my account forever and cannot be recovered.
+                  </span>
+                </label>
+
+                {/* Countdown Locked Button with Cognitive Resistance */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setIsAntiInversionModalOpen(false)}
+                    className="flex-1 py-3.5 rounded-xl glass-panel text-slate-200 text-xs font-bold hover:bg-white/10 hover:brightness-110 active:scale-95 transition-all duration-150 ease-out"
+                  >
+                    Cancel & Protect Money
+                  </button>
+
+                  <button
+                    disabled={inversionTimer > 0 || !hasAcknowledgedInversion}
+                    onClick={() => {
+                      setIsAntiInversionModalOpen(false);
+                      setIsPinModalOpen(true);
+                    }}
+                    className={`flex-1 py-3.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                      inversionTimer > 0 || !hasAcknowledgedInversion
+                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-white/5'
+                        : 'bg-gradient-to-r from-amber-600 to-red-600 hover:brightness-110 text-white shadow-lg shadow-red-600/30 active:scale-[0.98] duration-200'
+                    }`}
+                  >
+                    {inversionTimer > 0 ? (
+                      <span className="flex items-center gap-2 font-mono">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                        Wait ({inversionTimer}s)
+                      </span>
+                    ) : (
+                      <span>Proceed with Transfer</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* MODAL 2: SECURE UPI PIN ENTRY (WITH SQUISH & SPRING NUMPAD) */}
+          {/* ========================================================================= */}
+          {isPinModalOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="w-full max-w-sm rounded-3xl bg-navy-900 border border-white/15 p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <span className="text-sm font-bold text-white">Enter 4-Digit UPI PIN</span>
+                  </div>
+                  <button
+                    onClick={() => setIsPinModalOpen(false)}
+                    className="text-xs text-slate-400 hover:text-white active:scale-95 transition-transform"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="text-center py-2">
+                  <div className="text-xs text-slate-400">Transferring to {recipientVpa || 'Payee'}</div>
+                  <div className="text-2xl font-extrabold text-white mt-1">{formatINR(parseFloat(transferAmount) || 0)}</div>
+                </div>
+
+                {/* PIN Input Circles */}
+                <div className="flex justify-center gap-4 py-2">
+                  {[0, 1, 2, 3].map(index => (
+                    <div
+                      key={index}
+                      className={`w-11 h-11 rounded-xl border-2 flex items-center justify-center text-lg font-bold font-mono transition-all ${enteredPin.length > index ? 'border-blue-500 bg-blue-500/20 text-white' : 'border-white/20 bg-white/5 text-transparent'}`}
+                    >
+                      {enteredPin.length > index ? '•' : ''}
+                    </div>
+                  ))}
+                </div>
+
+                {/* TACTILE NUMERAL KEYPAD: SQUISH & SPRING (active:scale-95 duration-150) */}
+                <div className="grid grid-cols-3 gap-2 pt-2">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+                    <button
+                      key={num}
+                      onClick={() => {
+                        if (enteredPin.length < 4) {
+                          const newPin = enteredPin + num;
+                          setEnteredPin(newPin);
+                          if (newPin.length === 4) {
+                            setTimeout(() => {
+                              handlePinSubmit(newPin);
+                              setEnteredPin('');
+                            }, 200);
+                          }
+                        }
+                      }}
+                      className="py-3.5 rounded-xl glass-panel text-lg font-bold text-white hover:brightness-110 hover:bg-white/15 active:scale-95 transition-all duration-150 ease-out shadow-sm"
+                    >
+                      {num}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setEnteredPin('')}
+                    className="py-3.5 rounded-xl glass-panel text-xs font-semibold text-slate-400 hover:text-white hover:brightness-110 active:scale-95 transition-all duration-150 ease-out"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (enteredPin.length < 4) {
+                        const newPin = enteredPin + '0';
+                        setEnteredPin(newPin);
+                        if (newPin.length === 4) {
+                          setTimeout(() => {
+                            handlePinSubmit(newPin);
+                            setEnteredPin('');
+                          }, 200);
+                        }
+                      }
+                    }}
+                    className="py-3.5 rounded-xl glass-panel text-lg font-bold text-white hover:brightness-110 hover:bg-white/15 active:scale-95 transition-all duration-150 ease-out shadow-sm"
+                  >
+                    0
+                  </button>
+                  <button
+                    onClick={() => setEnteredPin(prev => prev.slice(0, -1))}
+                    className="py-3.5 rounded-xl glass-panel text-sm font-semibold text-slate-400 hover:text-white hover:brightness-110 active:scale-95 transition-all duration-150 ease-out flex items-center justify-center"
+                  >
+                    ⌫
+                  </button>
+                </div>
+
+                <div className="text-[11px] text-center text-slate-400">
+                  Demo hint: Use <strong>1234</strong> (Master) or <strong>9999</strong> (Duress Shadow PIN)
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* GHOST MODE 4-SECOND SIMULATED SPINNER & TIMEOUT ERROR DIALOG */}
+          {/* ========================================================================= */}
+          {isProcessingGhostDelay && (
+            <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+              <div className="w-full max-w-sm rounded-3xl bg-navy-900 border border-white/10 p-8 text-center space-y-4 animate-in fade-in duration-200">
+                <div className="w-12 h-12 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <div className="text-base font-bold text-white">Cryptographic Security Handshake...</div>
+                <p className="text-xs text-slate-400">Verifying multi-point banking tokens with core gateway.</p>
+              </div>
+            </div>
+          )}
+
+          {ghostTimeoutError && (
+            <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+              <div className="w-full max-w-md rounded-3xl bg-navy-900 border border-white/15 p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
+                <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center mx-auto">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="text-center space-y-1">
+                  <h3 className="text-lg font-bold text-white">{ghostTimeoutError.title}</h3>
+                  <p className="text-xs text-slate-300 leading-relaxed">{ghostTimeoutError.message}</p>
+                </div>
+                <button
+                  onClick={() => setGhostTimeoutError(null)}
+                  className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 hover:brightness-110 active:scale-95 text-white text-xs font-bold transition-all duration-150 ease-out"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    // Render the React Application
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

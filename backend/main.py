@@ -1,7 +1,10 @@
 import datetime
+import os
 import uuid
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.auth import hash_password, verify_password
@@ -21,7 +24,7 @@ from app.services.ghost_session_service import (
 from app.ml.inference import assess_risk
 
 
-# Auto-migrate SQLite schema for safety_password_hash if needed
+# Auto-migrate SQLite schema and seed standard demo accounts if missing
 def _auto_migrate():
     with engine.connect() as conn:
         cursor = conn.connection.cursor()
@@ -30,6 +33,22 @@ def _auto_migrate():
         if "safety_password_hash" not in cols:
             cursor.execute("ALTER TABLE customers ADD COLUMN safety_password_hash VARCHAR(255)")
             conn.connection.commit()
+
+        # Seed simulation accounts if not present
+        demo_accounts = [
+            ("fraudster@upi", "DemoPass123!", 0.0),
+            ("mule_account_scammer@upi", "DemoPass123!", 0.0),
+            ("safe_vault_police@upi", "DemoPass123!", 0.0),
+        ]
+        for demo_id, demo_pwd, demo_bal in demo_accounts:
+            cursor.execute("SELECT id FROM customers WHERE user_id = ?", (demo_id,))
+            if not cursor.fetchone():
+                p_hash = hash_password(demo_pwd)
+                cursor.execute(
+                    "INSERT INTO customers (user_id, password_hash, balance, average_transaction_amount) VALUES (?, ?, ?, ?)",
+                    (demo_id, p_hash, demo_bal, 0.0),
+                )
+        conn.connection.commit()
 
 _auto_migrate()
 Base.metadata.create_all(bind=engine)
@@ -49,15 +68,28 @@ app.add_middleware(
 
 
 # ============================================================
-# HEALTH CHECK
+# HEALTH CHECK & FRONTEND DASHBOARD
 # ============================================================
 
+FRONTEND_INDEX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "index.html")
+
 @app.get("/")
-def root():
+def root(request: Request):
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept and os.path.exists(FRONTEND_INDEX_PATH):
+        return FileResponse(FRONTEND_INDEX_PATH)
     return {
         "message": "SENTINEL API is running",
         "version": "2.0.0",
+        "dashboard_url": "/dashboard"
     }
+
+@app.get("/app", response_class=HTMLResponse)
+@app.get("/dashboard", response_class=HTMLResponse)
+def serve_dashboard():
+    if os.path.exists(FRONTEND_INDEX_PATH):
+        return FileResponse(FRONTEND_INDEX_PATH)
+    return HTMLResponse("<h3>SENTINEL Frontend not found</h3>", status_code=404)
 
 
 # ============================================================
@@ -156,24 +188,50 @@ def login(
 # ============================================================
 # TRANSACTIONS (NORMAL REAL LEDGER & GHOST SHADOW LEDGER)
 # ============================================================
+# TRANSACTIONS (NORMAL USER-TO-USER LEDGER & GHOST SHADOW LEDGER)
+# ============================================================
 
 @app.post("/api/v1/transactions", response_model=TransactionResponse)
 def execute_transaction(
     request: TransactionCreateRequest,
     db: Session = Depends(get_db),
 ):
+    # 1. Validate Authenticated Sender
     customer = (
         db.query(Customer)
-        .filter(Customer.user_id == request.user_id)
+        .filter(Customer.user_id == request.user_id.strip())
         .first()
     )
     if not customer:
         raise HTTPException(status_code=404, detail="Customer account not found")
 
+    # 2. Validate Amount
     if request.amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be greater than zero")
 
-    # 1. Telemetry extraction & Risk Engine Evaluation
+    sender_id_clean = request.user_id.strip()
+    recipient_id_clean = request.recipient_id.strip()
+
+    # 3. Prevent Self-Transfer
+    if sender_id_clean.lower() == recipient_id_clean.lower():
+        raise HTTPException(
+            status_code=400,
+            detail="You can't transfer money to your own account.",
+        )
+
+    # 4. Validate Recipient Existence in Authoritative Database
+    recipient_customer = (
+        db.query(Customer)
+        .filter(Customer.user_id == recipient_id_clean)
+        .first()
+    )
+    if not recipient_customer:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found. We couldn't find an account with this User ID. Please check the ID and try again.",
+        )
+
+    # 5. Telemetry extraction & Risk Engine Evaluation
     telemetry = request.telemetry or {}
     call_status = str(telemetry.get("call_status", "CallStatus.idle"))
     is_call = "activecall" in call_status.lower() or telemetry.get("call_active") is True
@@ -200,19 +258,19 @@ def execute_transaction(
         else customer.balance
     )
 
-    # 2. Check Insufficient Balance First
+    # 6. Check Insufficient Balance
     if request.amount > current_active_balance:
         raise HTTPException(
             status_code=400,
             detail="Insufficient balance. You don't have enough available balance for this payment.",
         )
 
-    # 3. HIGH RISK Intervention
+    # 7. HIGH RISK Intervention
     if risk_level == "HIGH" and risk_result.get("action") == "BLOCK":
         return TransactionResponse(
             transaction_id=f"BLK-{uuid.uuid4().hex[:10].upper()}",
-            user_id=request.user_id,
-            recipient_id=request.recipient_id,
+            user_id=sender_id_clean,
+            recipient_id=recipient_id_clean,
             amount=request.amount,
             status="BLOCKED",
             risk_level=risk_level,
@@ -224,12 +282,12 @@ def execute_transaction(
             message="Transaction paused by SENTINEL fraud prevention system.",
         )
 
-    # 4. MEDIUM RISK Safety Check (if unconfirmed)
+    # 8. MEDIUM RISK Safety Check (if unconfirmed)
     if risk_level == "MEDIUM" and not request.confirmed:
         return TransactionResponse(
             transaction_id=f"WARN-{uuid.uuid4().hex[:10].upper()}",
-            user_id=request.user_id,
-            recipient_id=request.recipient_id,
+            user_id=sender_id_clean,
+            recipient_id=recipient_id_clean,
             amount=request.amount,
             status="REQUIRES_VERIFICATION",
             risk_level=risk_level,
@@ -241,15 +299,15 @@ def execute_transaction(
             message="Moderate coercion or unusual activity detected. Verification required.",
         )
 
-    # 5. EXECUTION BRANCH
+    # 9. EXECUTION BRANCH
     if is_ghost:
         # ============================================================
         # GHOST MODE: SHADOW LEDGER ONLY (ZERO REAL MONEY MOVES)
         # ============================================================
         try:
             shadow_tx, new_shadow_bal = execute_shadow_transaction(
-                user_id=request.user_id,
-                recipient_id=request.recipient_id,
+                user_id=sender_id_clean,
+                recipient_id=recipient_id_clean,
                 amount=request.amount,
                 risk_level=risk_level,
                 risk_score=risk_score,
@@ -261,8 +319,8 @@ def execute_transaction(
 
         return TransactionResponse(
             transaction_id=shadow_tx["transaction_id"],
-            user_id=request.user_id,
-            recipient_id=request.recipient_id,
+            user_id=sender_id_clean,
+            recipient_id=recipient_id_clean,
             amount=request.amount,
             status="SUCCESS",
             risk_level=risk_level,
@@ -276,11 +334,16 @@ def execute_transaction(
 
     else:
         # ============================================================
-        # NORMAL MODE: REAL TRANSACTION COMMITTED TO DATABASE
+        # NORMAL MODE: USER-TO-USER ATOMIC TRANSFER IN SQLITE
         # ============================================================
         customer.balance = round(customer.balance - request.amount, 2)
         customer.average_transaction_amount = round(
             (customer.average_transaction_amount + request.amount) / 2.0, 2
+        )
+
+        recipient_customer.balance = round(recipient_customer.balance + request.amount, 2)
+        recipient_customer.average_transaction_amount = round(
+            (recipient_customer.average_transaction_amount + request.amount) / 2.0, 2
         )
 
         tx_id = f"TX-{uuid.uuid4().hex[:10].upper()}"
@@ -288,7 +351,7 @@ def execute_transaction(
         real_tx = Transaction(
             transaction_id=tx_id,
             user_id=customer.user_id,
-            recipient_id=request.recipient_id,
+            recipient_id=recipient_customer.user_id,
             amount=request.amount,
             timestamp=now,
             risk_level=risk_level,
@@ -297,14 +360,19 @@ def execute_transaction(
             is_shadow=False,
         )
 
-        db.add(real_tx)
-        db.commit()
-        db.refresh(customer)
+        try:
+            db.add(real_tx)
+            db.commit()
+            db.refresh(customer)
+            db.refresh(recipient_customer)
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Database transfer failed: {str(e)}")
 
         return TransactionResponse(
             transaction_id=tx_id,
             user_id=customer.user_id,
-            recipient_id=request.recipient_id,
+            recipient_id=recipient_customer.user_id,
             amount=request.amount,
             status="SUCCESS",
             risk_level=risk_level,
@@ -313,12 +381,12 @@ def execute_transaction(
             balance=customer.balance,
             reasons=reasons,
             timestamp=now.isoformat(),
-            message="Transaction completed safely.",
+            message="Transfer completed safely.",
         )
 
 
 # ============================================================
-# TRANSACTION HISTORY
+# TRANSACTION HISTORY (BIDIRECTIONAL SENT & RECEIVED)
 # ============================================================
 
 @app.get("/api/v1/transactions")
@@ -327,39 +395,53 @@ def get_transactions(
     login_mode: str = "normal",
     db: Session = Depends(get_db),
 ):
+    clean_user_id = user_id.strip()
     if login_mode == "ghost":
         # Strictly return session-isolated shadow transactions
         return {
-            "user_id": user_id,
+            "user_id": clean_user_id,
             "login_mode": "ghost",
-            "transactions": get_shadow_transactions(user_id),
+            "transactions": get_shadow_transactions(clean_user_id),
         }
     else:
-        # Query real ledger from SQLite
+        # Query real ledger from SQLite where user is either sender or recipient
         records = (
             db.query(Transaction)
-            .filter(Transaction.user_id == user_id, Transaction.is_shadow == False)
+            .filter(
+                or_(
+                    Transaction.user_id == clean_user_id,
+                    Transaction.recipient_id == clean_user_id,
+                ),
+                Transaction.is_shadow == False,
+            )
             .order_by(Transaction.timestamp.desc())
             .limit(50)
             .all()
         )
+
+        tx_list = []
+        for tx in records:
+            is_sender = (tx.user_id == clean_user_id)
+            tx_list.append({
+                "transaction_id": tx.transaction_id,
+                "user_id": tx.user_id,
+                "sender_id": tx.user_id,
+                "recipient_id": tx.recipient_id,
+                "counterparty": tx.recipient_id if is_sender else tx.user_id,
+                "type": "SENT" if is_sender else "RECEIVED",
+                "direction": "OUTGOING" if is_sender else "INCOMING",
+                "amount": tx.amount,
+                "status": tx.status,
+                "risk_level": tx.risk_level,
+                "risk_score": tx.risk_score,
+                "is_shadow": False,
+                "timestamp": tx.timestamp.isoformat(),
+            })
+
         return {
-            "user_id": user_id,
+            "user_id": clean_user_id,
             "login_mode": "normal",
-            "transactions": [
-                {
-                    "transaction_id": tx.transaction_id,
-                    "user_id": tx.user_id,
-                    "recipient_id": tx.recipient_id,
-                    "amount": tx.amount,
-                    "status": tx.status,
-                    "risk_level": tx.risk_level,
-                    "risk_score": tx.risk_score,
-                    "is_shadow": False,
-                    "timestamp": tx.timestamp.isoformat(),
-                }
-                for tx in records
-            ],
+            "transactions": tx_list,
         }
 
 

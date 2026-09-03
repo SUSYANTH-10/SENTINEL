@@ -69,7 +69,11 @@ def execute_shadow_transaction(
         tx_record = {
             "transaction_id": f"GHOST-{uuid.uuid4().hex[:12].upper()}",
             "user_id": user_id,
+            "sender_id": user_id,
             "recipient_id": recipient_id,
+            "counterparty": recipient_id,
+            "type": "SENT",
+            "direction": "OUTGOING",
             "amount": amount,
             "status": status,
             "risk_level": risk_level,
