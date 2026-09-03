@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from app.ml.inference import assess_risk
 
 
 # ==========================================
@@ -34,57 +35,19 @@ class RiskResponse(BaseModel):
 
 
 # ==========================================
-# RISK ASSESSMENT
+# RISK ASSESSMENT API
 # ==========================================
 
 @app.post("/api/v1/assess-risk", response_model=RiskResponse)
-def assess_risk(data: TelemetryData):
+def assess_risk_endpoint(data: TelemetryData):
 
-    score = 0
-
-    # --------------------------------------
-    # 1. Active phone call
-    # --------------------------------------
-    if data.call_active:
-        score += 30
-
-    # --------------------------------------
-    # 2. Suspicious overlay detected
-    # --------------------------------------
-    if data.overlay_detected:
-        score += 40
-
-    # --------------------------------------
-    # 3. Abnormally high touch velocity
-    # --------------------------------------
-    if data.touch_velocity > 1000:
-        score += 30
-
-    # --------------------------------------
-    # Determine risk level
-    # --------------------------------------
-
-    if score >= 70:
-        risk_level = "HIGH"
-        action_recommended = "BLOCK_TRANSACTION"
-
-    elif score >= 40:
-        risk_level = "MEDIUM"
-        action_recommended = "WARN_USER"
-
-    else:
-        risk_level = "LOW"
-        action_recommended = "ALLOW"
-
-    # --------------------------------------
-    # Return result
-    # --------------------------------------
-
-    return RiskResponse(
-        score=score,
-        risk_level=risk_level,
-        action_recommended=action_recommended
+    result = assess_risk(
+        call_active=data.call_active,
+        overlay_detected=data.overlay_detected,
+        touch_velocity=data.touch_velocity
     )
+
+    return RiskResponse(**result)
 
 
 # ==========================================
