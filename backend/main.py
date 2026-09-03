@@ -13,12 +13,8 @@ PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-# Now safely import from ml.inference
-try:
-    from app.ml.inference import assess_risk as evaluate_ml_risk
-except ModuleNotFoundError:
-    # Fallback in case main.py is run directly inside root
-    from inference import assess_risk as evaluate_ml_risk
+
+from app.ml.inference import assess_risk as evaluate_ml_risk
 
 from fastapi import FastAPI
 from pydantic import BaseModel
