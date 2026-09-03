@@ -3,6 +3,7 @@ import '../sdk/call_detector.dart';
 import '../sdk/overlay_detector.dart';
 import '../sdk/touch_dynamics.dart';
 import '../sdk/risk_engine.dart';
+import '../services/api_service.dart';
 
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({super.key});
@@ -15,7 +16,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
   final CallDetector _callDetector = CallDetector();
   final OverlayDetector _overlayDetector = OverlayDetector();
   final TouchDynamicsDetector _touchDetector = TouchDynamicsDetector();
+  final ApiService _apiService = ApiService();
+  final TextEditingController _amountController = TextEditingController();
+  
   late RiskEngine _riskEngine;
+  bool _isProcessing = false;
 
   @override
   void initState() {
@@ -27,18 +32,47 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
-  void _triggerPayment() {
-    final riskLevel = _riskEngine.getRiskLevel();
-    final score = _riskEngine.calculateRiskScore();
+  Future<void> _triggerPayment() async {
+    setState(() => _isProcessing = true);
 
-    if (riskLevel == RiskLevel.high) {
-      _showSecurityAlert("CRITICAL RISK ($score/100)", 
-          "Active call & screen overlay detected! Payment blocked by SENTINEL.");
-    } else if (riskLevel == RiskLevel.medium) {
-      _showSecurityAlert("SUSPICIOUS ACTIVITY ($score/100)", 
-          "An ongoing phone call was detected during this transfer. Please confirm you are not being instructed by a stranger.");
+    final amount = double.tryParse(_amountController.text) ?? 0.0;
+    
+    // 1. Local SDK Risk Assessment
+    final localRiskLevel = _riskEngine.getRiskLevel();
+    final localScore = _riskEngine.calculateRiskScore();
+
+    // 2. Call Backend API
+    final apiResult = await _apiService.evaluateRisk(
+      callStatus: _callDetector.currentStatus.toString(),
+      overlayDetected: _overlayDetector.isOverlayDetected,
+      touchVelocity: 0.0, // Expanded when touch telemetry is active
+      amount: amount,
+    );
+
+    setState(() => _isProcessing = false);
+
+    // If backend response is received, use backend risk evaluation; otherwise use local SDK engine
+    if (apiResult != null) {
+      final backendScore = apiResult['score'] ?? localScore;
+      final backendAction = apiResult['action'] ?? 'ALLOW';
+
+      if (backendAction == 'BLOCK') {
+        _showSecurityAlert("CRITICAL RISK DETECTED ($backendScore/100)", 
+            "Backend Threat Engine blocked this transaction due to social engineering signals.");
+      } else {
+        _showSecurityAlert("PAYMENT SUCCESSFUL", "Backend verified transaction as safe.");
+      }
     } else {
-      _showSecurityAlert("PAYMENT SUCCESSFUL", "Transaction processed safely.");
+      // Fallback to local SDK risk engine if backend is offline
+      if (localRiskLevel == RiskLevel.high) {
+        _showSecurityAlert("CRITICAL RISK ($localScore/100)", 
+            "Active call & screen overlay detected! Payment blocked locally by SENTINEL SDK.");
+      } else if (localRiskLevel == RiskLevel.medium) {
+        _showSecurityAlert("SUSPICIOUS ACTIVITY ($localScore/100)", 
+            "An ongoing phone call was detected. Please confirm you are not being coerced.");
+      } else {
+        _showSecurityAlert("PAYMENT SUCCESSFUL", "Transaction processed safely (Local SDK).");
+      }
     }
   }
 
@@ -92,8 +126,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              const TextField(
-                decoration: InputDecoration(
+              TextField(
+                controller: _amountController,
+                decoration: const InputDecoration(
                   labelText: "Amount (₹)",
                   border: OutlineInputBorder(),
                 ),
@@ -101,18 +136,20 @@ class _PaymentScreenState extends State<PaymentScreen> {
               ),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: _triggerPayment,
+                onPressed: _isProcessing ? null : _triggerPayment,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.indigo,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: const Text("Pay Now", style: TextStyle(fontSize: 18, color: Colors.white)),
+                child: _isProcessing
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("Pay Now", style: TextStyle(fontSize: 18, color: Colors.white)),
               ),
               const Spacer(),
               const Divider(),
               const Text("Hackathon Demo Triggers:", style: TextStyle(fontWeight: FontWeight.bold)),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                mainAxisAlignment: MainSpacer.spaceEvenly,
                 children: [
                   ElevatedButton(
                     onPressed: () {
