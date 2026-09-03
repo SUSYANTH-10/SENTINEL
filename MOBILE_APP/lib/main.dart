@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'ui/payment_screen.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
   runApp(const SentinelApp());
 }
 
@@ -12,13 +11,10 @@ class SentinelApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'SENTINEL',
+      title: 'SENTINEL Fraud Shield',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple,
-          brightness: Brightness.dark,
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
       ),
       home: const PaymentScreen(),

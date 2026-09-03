@@ -18,7 +18,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   final TouchDynamicsDetector _touchDetector = TouchDynamicsDetector();
   final ApiService _apiService = ApiService();
   final TextEditingController _amountController = TextEditingController();
-  
+
   late RiskEngine _riskEngine;
   bool _isProcessing = false;
 
@@ -37,50 +37,83 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
     final amount = double.tryParse(_amountController.text) ?? 0.0;
     
-    // 1. Local SDK Risk Assessment
+    // Extract real-time touch dynamics velocity calculated by SDK
+    final touchVelocity = _touchDetector.calculateVelocity();
+
+    // 1. Local SDK Risk Metrics
     final localRiskLevel = _riskEngine.getRiskLevel();
     final localScore = _riskEngine.calculateRiskScore();
 
-    // 2. Call Backend API
+    // 2. Transmit Telemetry Payload to Backend API
     final apiResult = await _apiService.evaluateRisk(
       callStatus: _callDetector.currentStatus.toString(),
       overlayDetected: _overlayDetector.isOverlayDetected,
-      touchVelocity: 0.0, // Expanded when touch telemetry is active
+      touchVelocity: touchVelocity,
       amount: amount,
     );
 
     setState(() => _isProcessing = false);
 
-    // If backend response is received, use backend risk evaluation; otherwise use local SDK engine
+    // 3. Backend Response handling or Local Fallback
     if (apiResult != null) {
       final backendScore = apiResult['score'] ?? localScore;
       final backendAction = apiResult['action'] ?? 'ALLOW';
+      final reasons = (apiResult['reasons'] as List?)?.join("\n• ") ?? "";
 
       if (backendAction == 'BLOCK') {
-        _showSecurityAlert("CRITICAL RISK DETECTED ($backendScore/100)", 
-            "Backend Threat Engine blocked this transaction due to social engineering signals.");
+        _showSecurityAlert(
+          "CRITICAL RISK DETECTED ($backendScore/100)",
+          "Transaction blocked by SENTINEL Threat Engine.\n\nReasons:\n• $reasons",
+          isError: true,
+        );
+      } else if (backendAction == 'WARN') {
+        _showSecurityAlert(
+          "SUSPICIOUS TRANSACTION ($backendScore/100)",
+          "Caution advised before proceeding.\n\nReasons:\n• $reasons",
+          isError: false,
+        );
       } else {
-        _showSecurityAlert("PAYMENT SUCCESSFUL", "Backend verified transaction as safe.");
+        _showSecurityAlert(
+          "PAYMENT SUCCESSFUL",
+          "Backend verified transaction as safe. Risk Score: $backendScore/100",
+          isError: false,
+        );
       }
     } else {
-      // Fallback to local SDK risk engine if backend is offline
+      // Local SDK Fallback when backend server is offline
       if (localRiskLevel == RiskLevel.high) {
-        _showSecurityAlert("CRITICAL RISK ($localScore/100)", 
-            "Active call & screen overlay detected! Payment blocked locally by SENTINEL SDK.");
+        _showSecurityAlert(
+          "CRITICAL RISK ($localScore/100)",
+          "Active call & screen overlay detected! Blocked locally by SENTINEL SDK.",
+          isError: true,
+        );
       } else if (localRiskLevel == RiskLevel.medium) {
-        _showSecurityAlert("SUSPICIOUS ACTIVITY ($localScore/100)", 
-            "An ongoing phone call was detected. Please confirm you are not being coerced.");
+        _showSecurityAlert(
+          "SUSPICIOUS ACTIVITY ($localScore/100)",
+          "Ongoing phone call detected. Please verify you are not being coerced.",
+          isError: false,
+        );
       } else {
-        _showSecurityAlert("PAYMENT SUCCESSFUL", "Transaction processed safely (Local SDK).");
+        _showSecurityAlert(
+          "PAYMENT SUCCESSFUL",
+          "Transaction processed safely (Local SDK Fallback).",
+          isError: false,
+        );
       }
     }
   }
 
-  void _showSecurityAlert(String title, String message) {
+  void _showSecurityAlert(String title, String message, {required bool isError}) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(title),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: isError ? Colors.red.shade800 : Colors.indigo.shade900,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: Text(message),
         actions: [
           TextButton(
@@ -94,14 +127,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final score = _riskEngine.calculateRiskScore();
+    final currentScore = _riskEngine.calculateRiskScore();
 
     return Listener(
       onPointerDown: (event) => _touchDetector.recordTouchDown(event.position),
+      onPointerUp: (event) => _touchDetector.recordTouchUp(event.position),
       child: Scaffold(
         appBar: AppBar(
           title: const Text("SENTINEL Secure Pay"),
           backgroundColor: Colors.indigo,
+          elevation: 2,
         ),
         body: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -109,20 +144,35 @@ class _PaymentScreenState extends State<PaymentScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Card(
-                color: score > 40 ? Colors.red.shade100 : Colors.green.shade100,
+                color: currentScore > 40 ? Colors.red.shade100 : Colors.green.shade100,
+                elevation: 3,
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    "Current Threat Score: $score / 100",
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        "Live Threat Index:",
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        "$currentScore / 100",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: currentScore > 40 ? Colors.red.shade900 : Colors.green.shade900,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
               const SizedBox(height: 20),
               const TextField(
                 decoration: InputDecoration(
-                  labelText: "Recipient UPI ID / Phone",
+                  labelText: "Recipient UPI ID / Phone Number",
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person_outline),
                 ),
               ),
               const SizedBox(height: 12),
@@ -131,6 +181,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 decoration: const InputDecoration(
                   labelText: "Amount (₹)",
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.currency_rupee),
                 ),
                 keyboardType: TextInputType.number,
               ),
@@ -140,18 +191,35 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.indigo,
                   padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 child: _isProcessing
-                    ? const CircularProgressIndicator(color: Colors.white)
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
                     : const Text("Pay Now", style: TextStyle(fontSize: 18, color: Colors.white)),
               ),
               const Spacer(),
-              const Divider(),
-              const Text("Hackathon Demo Triggers:", style: TextStyle(fontWeight: FontWeight.bold)),
+              const Divider(thickness: 1.5),
+              const Text(
+                "Hackathon Attack Simulation Controls:",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
               Row(
-                mainAxisAlignment: MainSpacer.spaceEvenly,
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  ElevatedButton(
+                  OutlinedButton.icon(
+                    icon: Icon(_callDetector.currentStatus == CallStatus.activeCall
+                        ? Icons.call_end
+                        : Icons.call),
+                    label: Text(_callDetector.currentStatus == CallStatus.activeCall
+                        ? "End Call"
+                        : "Simulate Call"),
                     onPressed: () {
                       setState(() {
                         _callDetector.simulateIncomingCall(
@@ -161,11 +229,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         );
                       });
                     },
-                    child: Text(_callDetector.currentStatus == CallStatus.activeCall
-                        ? "End Call"
-                        : "Simulate Call"),
                   ),
-                  ElevatedButton(
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.layers),
+                    label: Text(_overlayDetector.isOverlayDetected
+                        ? "Clear Overlay"
+                        : "Simulate Overlay"),
                     onPressed: () {
                       setState(() {
                         _overlayDetector.simulateOverlayDetected(
@@ -173,9 +242,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         );
                       });
                     },
-                    child: Text(_overlayDetector.isOverlayDetected
-                        ? "Clear Overlay"
-                        : "Simulate Overlay"),
                   ),
                 ],
               ),
