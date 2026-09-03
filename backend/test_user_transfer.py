@@ -1,14 +1,31 @@
 import json
 import os
 import sqlite3
+import sys
 import urllib.error
 import urllib.request
 import uuid
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 BASE_URL = "http://127.0.0.1:8000"
+
+try:
+    from fastapi.testclient import TestClient
+    import main
+    _client = TestClient(main.app)
+except Exception:
+    _client = None
 
 
 def post_json(endpoint: str, data: dict):
+    if _client is not None:
+        r = _client.post(endpoint, json=data)
+        try:
+            return r.status_code, r.json()
+        except Exception:
+            return r.status_code, {"detail": r.text}
     req_data = json.dumps(data).encode("utf-8")
     req = urllib.request.Request(
         f"{BASE_URL}{endpoint}",
@@ -27,6 +44,12 @@ def post_json(endpoint: str, data: dict):
 
 
 def get_json(endpoint: str):
+    if _client is not None:
+        r = _client.get(endpoint)
+        try:
+            return r.status_code, r.json()
+        except Exception:
+            return r.status_code, {"detail": r.text}
     req = urllib.request.Request(f"{BASE_URL}{endpoint}")
     try:
         with urllib.request.urlopen(req) as resp:

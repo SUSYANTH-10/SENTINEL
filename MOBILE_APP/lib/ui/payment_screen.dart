@@ -65,13 +65,31 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   Future<void> _loadTransactionHistory() async {
-    final txs = await _apiService.fetchTransactions(
-      userId: sessionManager.userId ?? widget.userId,
+    await _refreshDashboard();
+  }
+
+  Future<void> _refreshDashboard() async {
+    final currentUid = sessionManager.userId ?? widget.userId;
+    final state = await _apiService.fetchAccountState(
+      userId: currentUid,
       loginMode: sessionManager.loginMode,
     );
-    if (mounted) {
-      sessionManager.setTransactions(txs);
+    if (!mounted) return;
+
+    if (state['success'] != true) {
+      // Offline or network error: retain current session state
+      return;
     }
+
+    final newBal = state['balance'] as double?;
+    if (newBal != null) {
+      sessionManager.updateBalance(newBal);
+    }
+
+    final txs = (state['transactions'] as List<dynamic>?)
+            ?.cast<Map<String, dynamic>>() ??
+        [];
+    sessionManager.setTransactions(txs);
   }
 
   String _greetingText() {
@@ -257,7 +275,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
       sessionManager.updateBalance(newBal);
       sessionManager.addTransaction({
         'transaction_id': result['transaction_id'],
+        'user_id': sessionManager.userId ?? widget.userId,
+        'sender_id': sessionManager.userId ?? widget.userId,
         'recipient_id': recipient,
+        'counterparty': recipient,
+        'counterparty_user_id': recipient,
+        'type': 'SENT',
+        'direction': 'OUTGOING',
+        'transfer_direction': 'SENT',
         'amount': amount,
         'status': 'SUCCESS',
         'created_at': DateTime.now().toIso8601String(),
@@ -424,6 +449,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
               title: const Text("SENTINEL Secure Pay"),
               actions: [
                 IconButton(
+                  icon: const Icon(Icons.refresh_rounded),
+                  tooltip: "Refresh Balance & History",
+                  onPressed: () async {
+                    await _refreshDashboard();
+                    _showSnackBar("Refreshed account balance and transactions.");
+                  },
+                ),
+                IconButton(
                   icon: const Icon(Icons.logout_rounded),
                   tooltip: "Logout",
                   onPressed: _promptLogout,
@@ -433,11 +466,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
               ],
             ),
             body: SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 540),
+              child: RefreshIndicator(
+                onRefresh: _refreshDashboard,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 540),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -734,11 +770,32 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                         color: colorScheme.onSurface,
                                       ),
                                     ),
-                                    Text(
-                                      "All transfers",
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: colorScheme.onSurfaceVariant,
+                                    InkWell(
+                                      borderRadius: BorderRadius.circular(6),
+                                      onTap: () async {
+                                        await _refreshDashboard();
+                                        _showSnackBar("Transactions updated.");
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.sync_rounded,
+                                              size: 14,
+                                              color: colorScheme.primary,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              "Sync",
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                                color: colorScheme.primary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -779,58 +836,114 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                     itemBuilder: (context, index) {
                                       final tx = sessionManager.recentTransactions[index];
                                       final txAmount = (tx['amount'] as num?)?.toDouble() ?? 0.0;
-                                      final recipient = tx['recipient_id'] ?? 'Recipient';
-                                      final status = tx['status'] ?? 'SUCCESS';
+                                      final currentUid = (sessionManager.userId ?? widget.userId).toLowerCase();
+                                      final type = (tx['type'] ?? '').toString().toUpperCase();
+                                      final direction = (tx['direction'] ?? '').toString().toUpperCase();
+                                      final transferDirection = (tx['transfer_direction'] ?? '').toString().toUpperCase();
+                                      final senderId = (tx['sender_id'] ?? tx['user_id'] ?? '').toString();
+
+                                      final isIncoming = type == 'RECEIVED' ||
+                                          direction == 'INCOMING' ||
+                                          direction == 'RECEIVED' ||
+                                          transferDirection == 'RECEIVED' ||
+                                          (senderId.isNotEmpty && senderId.toLowerCase() != currentUid);
+
+                                      final counterparty = (tx['counterparty'] ??
+                                          tx['counterparty_user_id'] ??
+                                          (isIncoming ? (tx['sender_id'] ?? tx['user_id']) : tx['recipient_id']) ??
+                                          'Unknown').toString();
+
+                                      final labelText = isIncoming
+                                          ? "Received from $counterparty"
+                                          : "Sent to $counterparty";
+
+                                      final amountText = isIncoming
+                                          ? "+₹${txAmount.toStringAsFixed(2)}"
+                                          : "-₹${txAmount.toStringAsFixed(2)}";
+
+                                      final status = (tx['status'] ?? 'SUCCESS').toString();
+                                      final isSuccess = status.toUpperCase() == 'SUCCESS';
+
+                                      final iconData = isIncoming
+                                          ? Icons.arrow_downward_rounded
+                                          : Icons.arrow_upward_rounded;
+
+                                      final themeGreen = isDark ? const Color(0xFF34D399) : const Color(0xFF059669);
+                                      final themeRed = isDark ? const Color(0xFFF87171) : const Color(0xFFDC2626);
+
+                                      final accentColor = isIncoming ? themeGreen : (isSuccess ? themeRed : colorScheme.error);
+                                      final iconBgColor = isIncoming
+                                          ? themeGreen.withValues(alpha: isDark ? 0.2 : 0.12)
+                                          : themeRed.withValues(alpha: isDark ? 0.2 : 0.10);
 
                                       return Row(
                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
-                                          Row(
-                                            children: [
-                                              Container(
-                                                width: 40,
-                                                height: 40,
-                                                decoration: BoxDecoration(
-                                                  shape: BoxShape.circle,
-                                                  color: const Color(0xFF10B981).withValues(alpha: 0.1),
-                                                ),
-                                                child: const Icon(
-                                                  Icons.arrow_upward_rounded,
-                                                  color: Color(0xFF10B981),
-                                                  size: 20,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    recipient,
-                                                    style: TextStyle(
-                                                      fontWeight: FontWeight.w600,
-                                                      fontSize: 14,
-                                                      color: colorScheme.onSurface,
-                                                    ),
+                                          Expanded(
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 40,
+                                                  height: 40,
+                                                  decoration: BoxDecoration(
+                                                    shape: BoxShape.circle,
+                                                    color: iconBgColor,
                                                   ),
-                                                  const SizedBox(height: 2),
-                                                  Text(
-                                                    status,
-                                                    style: const TextStyle(
-                                                      fontSize: 11,
-                                                      color: Color(0xFF10B981),
-                                                      fontWeight: FontWeight.w600,
-                                                    ),
+                                                  child: Icon(
+                                                    iconData,
+                                                    color: accentColor,
+                                                    size: 20,
                                                   ),
-                                                ],
-                                              ),
-                                            ],
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        labelText,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: TextStyle(
+                                                          fontWeight: FontWeight.w600,
+                                                          fontSize: 14,
+                                                          color: colorScheme.onSurface,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 2),
+                                                      Row(
+                                                        children: [
+                                                          Text(
+                                                            status,
+                                                            style: TextStyle(
+                                                              fontSize: 11,
+                                                              color: isSuccess ? themeGreen : colorScheme.error,
+                                                              fontWeight: FontWeight.w600,
+                                                            ),
+                                                          ),
+                                                          Text(
+                                                            " • ${isIncoming ? 'Incoming' : 'Outgoing'}",
+                                                            style: TextStyle(
+                                                              fontSize: 11,
+                                                              color: colorScheme.onSurfaceVariant,
+                                                              fontWeight: FontWeight.w500,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
+                                          const SizedBox(width: 8),
                                           Text(
-                                            "-₹${txAmount.toStringAsFixed(2)}",
+                                            amountText,
                                             style: TextStyle(
                                               fontSize: 15,
                                               fontWeight: FontWeight.w700,
-                                              color: colorScheme.onSurface,
+                                              color: isIncoming ? themeGreen : colorScheme.onSurface,
                                             ),
                                           ),
                                         ],
@@ -1068,10 +1181,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
               ),
             ),
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   Widget _quickActionButton({
     required IconData icon,

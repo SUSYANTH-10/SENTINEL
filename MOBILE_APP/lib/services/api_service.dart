@@ -145,10 +145,10 @@ class ApiService {
   }
 
   // ============================================================
-  // TRANSACTION HISTORY (ISOLATED REAL VS SHADOW LEDGER)
+  // ACCOUNT STATE & TRANSACTION HISTORY
   // ============================================================
 
-  Future<List<Map<String, dynamic>>> fetchTransactions({
+  Future<Map<String, dynamic>> fetchAccountState({
     required String userId,
     required String loginMode,
   }) async {
@@ -162,14 +162,53 @@ class ApiService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final list = data['transactions'] as List<dynamic>? ?? [];
-        return list.cast<Map<String, dynamic>>();
+        final balance = (data['balance'] as num?)?.toDouble();
+        return {
+          'success': true,
+          'balance': balance,
+          'transactions': list.cast<Map<String, dynamic>>(),
+        };
       }
 
-      return [];
+      return {'success': false, 'balance': null, 'transactions': <Map<String, dynamic>>[]};
     } catch (e) {
-      debugPrint('[SENTINEL TX] Fetch failed: $e');
-      return [];
+      debugPrint('[SENTINEL TX] Fetch account state failed: $e');
+      return {'success': false, 'balance': null, 'transactions': <Map<String, dynamic>>[]};
     }
+  }
+
+  Future<double?> fetchBalance({
+    required String userId,
+    required String loginMode,
+  }) async {
+    final url = Uri.parse(
+      '$baseUrl/api/v1/user/balance?user_id=$userId&login_mode=$loginMode',
+    );
+
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return (data['balance'] as num?)?.toDouble();
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[SENTINEL BAL] Fetch balance failed: $e');
+      return null;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchTransactions({
+    required String userId,
+    required String loginMode,
+  }) async {
+    final state = await fetchAccountState(
+      userId: userId,
+      loginMode: loginMode,
+    );
+    return (state['transactions'] as List<dynamic>?)
+            ?.cast<Map<String, dynamic>>() ??
+        [];
   }
 
   // ============================================================

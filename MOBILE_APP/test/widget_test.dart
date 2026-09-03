@@ -291,4 +291,65 @@ void main() {
 
     expect(find.text('₹45000.00'), findsOneWidget);
   });
+
+  testWidgets('PaymentScreen differentiates Sent to vs Received from transactions with correct signs and icons',
+      (WidgetTester tester) async {
+    // 1. Setup User B with one outgoing and one incoming transaction
+    sessionManager.startSession(
+      userId: 'USER_B',
+      loginMode: 'normal',
+      balance: 15000.0,
+    );
+
+    sessionManager.setTransactions([
+      {
+        'transaction_id': 'TX-RECV-01',
+        'user_id': 'USER_B',
+        'sender_id': 'USER_A',
+        'recipient_id': 'USER_B',
+        'counterparty': 'USER_A',
+        'type': 'RECEIVED',
+        'direction': 'INCOMING',
+        'amount': 5000.0,
+        'status': 'SUCCESS',
+      },
+      {
+        'transaction_id': 'TX-SENT-02',
+        'user_id': 'USER_B',
+        'sender_id': 'USER_B',
+        'recipient_id': 'USER_C',
+        'counterparty': 'USER_C',
+        'type': 'SENT',
+        'direction': 'OUTGOING',
+        'amount': 2000.0,
+        'status': 'SUCCESS',
+      },
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        home: const PaymentScreen(
+          userId: 'USER_B',
+          balance: 15000.0,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify incoming transfer
+    expect(find.text('Received from USER_A'), findsOneWidget);
+    expect(find.text('+₹5000.00'), findsOneWidget);
+    expect(find.byIcon(Icons.arrow_downward_rounded), findsOneWidget);
+
+    // Verify outgoing transfer
+    expect(find.text('Sent to USER_C'), findsOneWidget);
+    expect(find.text('-₹2000.00'), findsOneWidget);
+    expect(find.byIcon(Icons.arrow_upward_rounded), findsOneWidget);
+
+    // Verify Refresh & Sync buttons are available
+    expect(find.byIcon(Icons.refresh_rounded), findsOneWidget);
+    expect(find.text('Sync'), findsOneWidget);
+  });
 }

@@ -4,7 +4,7 @@ import uuid
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.auth import hash_password, verify_password
@@ -37,6 +37,8 @@ def _auto_migrate():
         # Seed simulation accounts if not present
         demo_accounts = [
             ("fraudster@upi", "DemoPass123!", 0.0),
+            ("scammer@upi", "DemoPass123!", 0.0),
+            ("legit_store@upi", "DemoPass123!", 0.0),
             ("mule_account_scammer@upi", "DemoPass123!", 0.0),
             ("safe_vault_police@upi", "DemoPass123!", 0.0),
         ]
@@ -219,13 +221,15 @@ def execute_transaction(
             detail="You can't transfer money to your own account.",
         )
 
+    is_ghost = request.login_mode == "ghost"
+
     # 4. Validate Recipient Existence in Authoritative Database
     recipient_customer = (
         db.query(Customer)
-        .filter(Customer.user_id == recipient_id_clean)
+        .filter(func.lower(Customer.user_id) == recipient_id_clean.lower())
         .first()
     )
-    if not recipient_customer:
+    if not recipient_customer and not is_ghost:
         raise HTTPException(
             status_code=404,
             detail="User not found. We couldn't find an account with this User ID. Please check the ID and try again.",
@@ -251,7 +255,6 @@ def execute_transaction(
     risk_score = risk_result["score"]
     reasons = risk_result.get("reasons", [])
 
-    is_ghost = request.login_mode == "ghost"
     current_active_balance = (
         get_shadow_balance(request.user_id, customer.balance)
         if is_ghost
@@ -398,9 +401,17 @@ def get_transactions(
     clean_user_id = user_id.strip()
     if login_mode == "ghost":
         # Strictly return session-isolated shadow transactions
+        customer = (
+            db.query(Customer)
+            .filter(func.lower(Customer.user_id) == clean_user_id.lower())
+            .first()
+        )
+        fallback_bal = customer.balance if customer else 0.0
+        shadow_bal = get_shadow_balance(clean_user_id, fallback_bal)
         return {
             "user_id": clean_user_id,
             "login_mode": "ghost",
+            "balance": shadow_bal,
             "transactions": get_shadow_transactions(clean_user_id),
         }
     else:
@@ -409,8 +420,8 @@ def get_transactions(
             db.query(Transaction)
             .filter(
                 or_(
-                    Transaction.user_id == clean_user_id,
-                    Transaction.recipient_id == clean_user_id,
+                    func.lower(Transaction.user_id) == clean_user_id.lower(),
+                    func.lower(Transaction.recipient_id) == clean_user_id.lower(),
                 ),
                 Transaction.is_shadow == False,
             )
@@ -419,17 +430,29 @@ def get_transactions(
             .all()
         )
 
+        customer = (
+            db.query(Customer)
+            .filter(func.lower(Customer.user_id) == clean_user_id.lower())
+            .first()
+        )
+        current_bal = customer.balance if customer else 0.0
+
         tx_list = []
         for tx in records:
-            is_sender = (tx.user_id == clean_user_id)
+            is_sender = (tx.user_id.lower() == clean_user_id.lower())
+            counterparty = tx.recipient_id if is_sender else tx.user_id
+            direction_str = "SENT" if is_sender else "RECEIVED"
+            flow_str = "OUTGOING" if is_sender else "INCOMING"
             tx_list.append({
                 "transaction_id": tx.transaction_id,
-                "user_id": tx.user_id,
+                "user_id": clean_user_id,
                 "sender_id": tx.user_id,
                 "recipient_id": tx.recipient_id,
-                "counterparty": tx.recipient_id if is_sender else tx.user_id,
-                "type": "SENT" if is_sender else "RECEIVED",
-                "direction": "OUTGOING" if is_sender else "INCOMING",
+                "counterparty": counterparty,
+                "counterparty_user_id": counterparty,
+                "type": direction_str,
+                "direction": flow_str,
+                "transfer_direction": direction_str,
                 "amount": tx.amount,
                 "status": tx.status,
                 "risk_level": tx.risk_level,
@@ -441,8 +464,36 @@ def get_transactions(
         return {
             "user_id": clean_user_id,
             "login_mode": "normal",
+            "balance": current_bal,
             "transactions": tx_list,
         }
+
+
+@app.get("/api/v1/user/balance")
+def get_user_balance(
+    user_id: str,
+    login_mode: str = "normal",
+    db: Session = Depends(get_db),
+):
+    clean_user_id = user_id.strip()
+    customer = (
+        db.query(Customer)
+        .filter(func.lower(Customer.user_id) == clean_user_id.lower())
+        .first()
+    )
+    if not customer:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if login_mode == "ghost":
+        bal = get_shadow_balance(clean_user_id, customer.balance)
+    else:
+        bal = customer.balance
+
+    return {
+        "user_id": clean_user_id,
+        "login_mode": login_mode,
+        "balance": bal,
+    }
 
 
 # ============================================================
