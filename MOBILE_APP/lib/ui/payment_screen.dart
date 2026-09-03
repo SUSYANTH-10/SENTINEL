@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../sdk/call_detector.dart';
 import '../sdk/overlay_detector.dart';
 import '../sdk/touch_dynamics.dart';
-import '../sdk/risk_engine.dart';
 import '../services/api_service.dart';
 
 class PaymentScreen extends StatefulWidget {
@@ -13,107 +12,149 @@ class PaymentScreen extends StatefulWidget {
 }
 
 class _PaymentScreenState extends State<PaymentScreen> {
+  final TextEditingController _amountController = TextEditingController();
+  final TextEditingController _recipientController = TextEditingController();
+
   final CallDetector _callDetector = CallDetector();
   final OverlayDetector _overlayDetector = OverlayDetector();
   final TouchDynamicsDetector _touchDetector = TouchDynamicsDetector();
   final ApiService _apiService = ApiService();
-  final TextEditingController _amountController = TextEditingController();
 
-  late RiskEngine _riskEngine;
-  bool _isProcessing = false;
+  bool _isCallActive = false;
+  bool _isOverlayActive = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _callDetector.startMonitoring();
-    _riskEngine = RiskEngine(
-      callDetector: _callDetector,
-      overlayDetector: _overlayDetector,
+    _overlayDetector.startMonitoring();
+  }
+
+  // --- SCENARIO TRIGGERS ---
+
+  void _triggerOverpaymentScam() {
+    setState(() {
+      _isCallActive = true;
+      _isOverlayActive = true;
+      _recipientController.text = "mule_account_scammer@upi";
+      _amountController.text = "5000";
+    });
+
+    _showScamBanner(
+      "SIMULATING: Overpayment / Refund Scam",
+      "Scammer claims they sent ₹100 by mistake, demanding an immediate refund under high stress while keeping you on an active call with screen sharing.",
     );
   }
 
-  Future<void> _triggerPayment() async {
-    setState(() => _isProcessing = true);
+  void _triggerPoliceCoercionScam() {
+    setState(() {
+      _isCallActive = true;
+      _isOverlayActive = true;
+      _recipientController.text = "safe_vault_police@upi";
+      _amountController.text = "50000";
+    });
 
-    final amount = double.tryParse(_amountController.text) ?? 0.0;
-    
-    // Extract real-time touch dynamics velocity calculated by SDK
-    final touchVelocity = _touchDetector.calculateVelocity();
-
-    // 1. Local SDK Risk Metrics
-    final localRiskLevel = _riskEngine.getRiskLevel();
-    final localScore = _riskEngine.calculateRiskScore();
-
-    // 2. Transmit Telemetry Payload to Backend API
-    final apiResult = await _apiService.evaluateRisk(
-      callStatus: _callDetector.currentStatus.toString(),
-      overlayDetected: _overlayDetector.isOverlayDetected,
-      touchVelocity: touchVelocity,
-      amount: amount,
+    _showScamBanner(
+      "SIMULATING: Law Enforcement Coercion",
+      "Scammer impersonating police claims your account will be frozen in 5 minutes unless you transfer savings to a 'Safe Government Holding Account'.",
     );
-
-    setState(() => _isProcessing = false);
-
-    // 3. Backend Response handling or Local Fallback
-    if (apiResult != null) {
-      final backendScore = apiResult['score'] ?? localScore;
-      final backendAction = apiResult['action'] ?? 'ALLOW';
-      final reasons = (apiResult['reasons'] as List?)?.join("\n• ") ?? "";
-
-      if (backendAction == 'BLOCK') {
-        _showSecurityAlert(
-          "CRITICAL RISK DETECTED ($backendScore/100)",
-          "Transaction blocked by SENTINEL Threat Engine.\n\nReasons:\n• $reasons",
-          isError: true,
-        );
-      } else if (backendAction == 'WARN') {
-        _showSecurityAlert(
-          "SUSPICIOUS TRANSACTION ($backendScore/100)",
-          "Caution advised before proceeding.\n\nReasons:\n• $reasons",
-          isError: false,
-        );
-      } else {
-        _showSecurityAlert(
-          "PAYMENT SUCCESSFUL",
-          "Backend verified transaction as safe. Risk Score: $backendScore/100",
-          isError: false,
-        );
-      }
-    } else {
-      // Local SDK Fallback when backend server is offline
-      if (localRiskLevel == RiskLevel.high) {
-        _showSecurityAlert(
-          "CRITICAL RISK ($localScore/100)",
-          "Active call & screen overlay detected! Blocked locally by SENTINEL SDK.",
-          isError: true,
-        );
-      } else if (localRiskLevel == RiskLevel.medium) {
-        _showSecurityAlert(
-          "SUSPICIOUS ACTIVITY ($localScore/100)",
-          "Ongoing phone call detected. Please verify you are not being coerced.",
-          isError: false,
-        );
-      } else {
-        _showSecurityAlert(
-          "PAYMENT SUCCESSFUL",
-          "Transaction processed safely (Local SDK Fallback).",
-          isError: false,
-        );
-      }
-    }
   }
 
-  void _showSecurityAlert(String title, String message, {required bool isError}) {
+  void _resetSimulation() {
+    setState(() {
+      _isCallActive = false;
+      _isOverlayActive = false;
+      _recipientController.clear();
+      _amountController.clear();
+    });
+  }
+
+  void _showScamBanner(String title, String description) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(
-          title,
-          style: TextStyle(
-            color: isError ? Colors.red.shade800 : Colors.indigo.shade900,
-            fontWeight: FontWeight.bold,
-          ),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
         ),
+        content: Text(description),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text("UNDERSTOOD"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- PAYMENT PROCESSOR ---
+
+  Future<void> _processPayment() async {
+    final amount = double.tryParse(_amountController.text) ?? 0.0;
+    final recipient = _recipientController.text.trim();
+
+    if (amount <= 0 || recipient.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter a valid recipient and amount")),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final touchVelocity = _touchDetector.calculateVelocity();
+
+    final response = await _apiService.assessRisk(
+      callStatus: _isCallActive ? "CallStatus.activeCall" : "CallStatus.idle",
+      overlayDetected: _isOverlayActive,
+      touchVelocity: touchVelocity,
+      amount: amount,
+      recipientId: recipient,
+      failedLoginAttempts: 0,
+    );
+
+    setState(() => _isLoading = false);
+
+    final action = response["action"] ?? "ALLOW";
+    final double score = (response["score"] as num?)?.toDouble() ?? 0.0;
+    final List<dynamic> reasons = response["reasons"] ?? [];
+
+    if (action == "BLOCK") {
+      _showResultDialog(
+        "TRANSACTION BLOCKED",
+        "SENTINEL Enterprise Risk Engine detected high-confidence coercion (Risk Score: ${score.toStringAsFixed(1)}/100).\n\nRisk Vectors Identified:\n• ${reasons.join('\n• ')}",
+        Colors.red,
+      );
+    } else if (action == "WARN") {
+      _showResultDialog(
+        "SUSPICIOUS TRANSACTION WARNING",
+        "Moderate manipulation risk detected (Risk Score: ${score.toStringAsFixed(1)}/100).\n\nWarnings:\n• ${reasons.join('\n• ')}",
+        Colors.orange,
+      );
+    } else {
+      _showResultDialog(
+        "PAYMENT SUCCESSFUL",
+        "Transaction of ₹$amount to $recipient completed safely.",
+        Colors.green,
+      );
+    }
+  }
+
+  void _showResultDialog(String title, String message, Color color) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
         content: Text(message),
         actions: [
           TextButton(
@@ -127,8 +168,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentScore = _riskEngine.calculateRiskScore();
-
     return Listener(
       onPointerDown: (event) => _touchDetector.recordTouchDown(event.position),
       onPointerUp: (event) => _touchDetector.recordTouchUp(event.position),
@@ -136,114 +175,142 @@ class _PaymentScreenState extends State<PaymentScreen> {
         appBar: AppBar(
           title: const Text("SENTINEL Secure Pay"),
           backgroundColor: Colors.indigo,
-          elevation: 2,
+          foregroundColor: Colors.white,
         ),
-        body: Padding(
+        body: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Card(
-                color: currentScore > 40 ? Colors.red.shade100 : Colors.green.shade100,
                 elevation: 3,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        "Live Threat Index:",
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        "Money Transfer",
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                      Text(
-                        "$currentScore / 100",
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: currentScore > 40 ? Colors.red.shade900 : Colors.green.shade900,
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _recipientController,
+                        decoration: const InputDecoration(
+                          labelText: "Recipient UPI / Account ID",
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _amountController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: "Amount (₹)",
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _processPayment,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.indigo,
+                          ),
+                          child: _isLoading
+                              ? const CircularProgressIndicator(color: Colors.white)
+                              : const Text(
+                                  "PAY NOW",
+                                  style: TextStyle(color: Colors.white, fontSize: 16),
+                                ),
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
-              const TextField(
-                decoration: InputDecoration(
-                  labelText: "Recipient UPI ID / Phone Number",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person_outline),
+
+              const SizedBox(height: 24),
+
+              Card(
+                color: Colors.grey.shade50,
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  side: BorderSide(color: Colors.indigo.shade200),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _amountController,
-                decoration: const InputDecoration(
-                  labelText: "Amount (₹)",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.currency_rupee),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _isProcessing ? null : _triggerPayment,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.indigo,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.bug_report_outlined, color: Colors.indigo),
+                          SizedBox(width: 8),
+                          Text(
+                            "Scam Attack Manipulation Panel",
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const Divider(),
+
+                      SwitchListTile(
+                        title: const Text("Simulate Active Phone Call"),
+                        subtitle: const Text("Coercion indicator"),
+                        value: _isCallActive,
+                        onChanged: (val) => setState(() => _isCallActive = val),
+                      ),
+                      SwitchListTile(
+                        title: const Text("Simulate Screen Overlay / Sharing"),
+                        subtitle: const Text("Remote desktop indicator"),
+                        value: _isOverlayActive,
+                        onChanged: (val) => setState(() => _isOverlayActive = val),
+                      ),
+
+                      const SizedBox(height: 12),
+                      const Text(
+                        "One-Click Demo Attack Scenarios:",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      const SizedBox(height: 8),
+
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: _triggerOverpaymentScam,
+                            icon: const Icon(Icons.currency_rupee, size: 16),
+                            label: const Text("Refund Scam (₹5,000)"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange.shade800,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: _triggerPoliceCoercionScam,
+                            icon: const Icon(Icons.local_police, size: 16),
+                            label: const Text("Police Impersonation (₹50,000)"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red.shade800,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _resetSimulation,
+                            icon: const Icon(Icons.refresh, size: 16),
+                            label: const Text("Reset to Safe"),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                child: _isProcessing
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
-                    : const Text("Pay Now", style: TextStyle(fontSize: 18, color: Colors.white)),
-              ),
-              const Spacer(),
-              const Divider(thickness: 1.5),
-              const Text(
-                "Hackathon Attack Simulation Controls:",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  OutlinedButton.icon(
-                    icon: Icon(_callDetector.currentStatus == CallStatus.activeCall
-                        ? Icons.call_end
-                        : Icons.call),
-                    label: Text(_callDetector.currentStatus == CallStatus.activeCall
-                        ? "End Call"
-                        : "Simulate Call"),
-                    onPressed: () {
-                      setState(() {
-                        _callDetector.simulateIncomingCall(
-                          _callDetector.currentStatus == CallStatus.activeCall
-                              ? CallStatus.idle
-                              : CallStatus.activeCall,
-                        );
-                      });
-                    },
-                  ),
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.layers),
-                    label: Text(_overlayDetector.isOverlayDetected
-                        ? "Clear Overlay"
-                        : "Simulate Overlay"),
-                    onPressed: () {
-                      setState(() {
-                        _overlayDetector.simulateOverlayDetected(
-                          !_overlayDetector.isOverlayDetected,
-                        );
-                      });
-                    },
-                  ),
-                ],
               ),
             ],
           ),

@@ -11,13 +11,12 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  
+
   bool _isObscured = true;
   int _failedAttempts = 0;
   static const int _maxAttempts = 5;
   bool _isLockedOut = false;
 
-  // Valid credentials for demo/production testing
   static const String _validUsername = "tamil";
   static const String _validPassword = "9999";
 
@@ -27,25 +26,20 @@ class _LoginScreenState extends State<LoginScreen> {
     final username = _usernameController.text.trim();
     final password = _passwordController.text.trim();
 
-    // 1. Check for empty fields
     if (username.isEmpty || password.isEmpty) {
       _showSnackBar("Please enter both username and password.", Colors.orange);
       return;
     }
 
-    // 2. Validate Credentials
     if (username == _validUsername && password == _validPassword) {
-      // Reset attempts on success
       setState(() {
         _failedAttempts = 0;
       });
 
-      // Navigate to main payment screen
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => const PaymentScreen()),
       );
     } else {
-      // 3. Handle Failed Login
       setState(() {
         _failedAttempts++;
         if (_failedAttempts >= _maxAttempts) {
