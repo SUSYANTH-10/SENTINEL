@@ -1,15 +1,24 @@
 import 'package:flutter/material.dart';
+
 import '../sdk/call_detector.dart';
 import '../sdk/overlay_detector.dart';
 import '../sdk/touch_dynamics.dart';
 import '../services/api_service.dart';
 
 class PaymentScreen extends StatefulWidget {
-  const PaymentScreen({super.key});
+  final String userId;
+  final double balance;
+
+  const PaymentScreen({
+    super.key,
+    required this.userId,
+    required this.balance,
+  });
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
 }
+
 
 class _PaymentScreenState extends State<PaymentScreen> {
   final TextEditingController _amountController = TextEditingController();
@@ -81,7 +90,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -105,7 +117,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
     if (amount <= 0 || recipient.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter a valid recipient and amount")),
+        const SnackBar(
+          content: Text("Please enter a valid recipient and amount"),
+        ),
       );
       return;
     }
@@ -154,7 +168,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+        title: Text(
+          title,
+          style: TextStyle(color: color, fontWeight: FontWeight.bold),
+        ),
         content: Text(message),
         actions: [
           TextButton(
@@ -184,7 +201,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
             children: [
               Card(
                 elevation: 3,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -192,7 +211,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     children: [
                       const Text(
                         "Money Transfer",
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       TextField(
@@ -221,10 +243,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
                             backgroundColor: Colors.indigo,
                           ),
                           child: _isLoading
-                              ? const CircularProgressIndicator(color: Colors.white)
+                              ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
                               : const Text(
                                   "PAY NOW",
-                                  style: TextStyle(color: Colors.white, fontSize: 16),
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
                                 ),
                         ),
                       ),
@@ -253,7 +280,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           SizedBox(width: 8),
                           Text(
                             "Scam Attack Manipulation Panel",
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       ),
@@ -269,13 +299,17 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         title: const Text("Simulate Screen Overlay / Sharing"),
                         subtitle: const Text("Remote desktop indicator"),
                         value: _isOverlayActive,
-                        onChanged: (val) => setState(() => _isOverlayActive = val),
+                        onChanged: (val) =>
+                            setState(() => _isOverlayActive = val),
                       ),
 
                       const SizedBox(height: 12),
                       const Text(
                         "One-Click Demo Attack Scenarios:",
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
                       ),
                       const SizedBox(height: 8),
 

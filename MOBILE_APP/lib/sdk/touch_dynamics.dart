@@ -13,7 +13,9 @@ class TouchDynamicsDetector {
   void recordTouchUp(Offset position) {
     if (_touchDownPosition != null && _touchDownTime != null) {
       final distance = (position - _touchDownPosition!).distance;
-      final duration = DateTime.now().difference(_touchDownTime!).inMilliseconds;
+      final duration = DateTime.now()
+          .difference(_touchDownTime!)
+          .inMilliseconds;
 
       if (duration > 0) {
         _lastVelocity = distance / duration;

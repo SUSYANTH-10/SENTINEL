@@ -2,11 +2,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sentinel/main.dart';
 
 void main() {
-  testWidgets('SENTINEL App loads successfully test', (WidgetTester tester) async {
-    // Build SENTINEL app and trigger a frame.
-    await tester.pumpWidget(const SentinelApp());
+  testWidgets(
+    'SENTINEL login screen loads',
+    (WidgetTester tester) async {
+      await tester.pumpWidget(const SentinelApp());
 
-    // Verify that the title on the PaymentScreen is visible.
-    expect(find.text('SENTINEL Secure Pay'), findsOneWidget);
-  });
+      expect(find.text('SENTINEL'), findsOneWidget);
+      expect(find.text('Welcome back'), findsOneWidget);
+      expect(find.text('SIGN IN'), findsOneWidget);
+      expect(
+        find.text('CREATE NEW ACCOUNT'),
+        findsOneWidget,
+      );
+    },
+  );
 }

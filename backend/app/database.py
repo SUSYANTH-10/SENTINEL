@@ -1,30 +1,26 @@
-import sqlite3
-from pathlib import Path
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
+
+DATABASE_URL = "sqlite:///./sentinel.db"
+
+engine = create_engine(
+    DATABASE_URL,
+    connect_args={"check_same_thread": False},
+)
+
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+)
+
+Base = declarative_base()
 
 
-DATABASE_PATH = Path(__file__).resolve().parent.parent / "sentinel.db"
+def get_db():
+    db = SessionLocal()
 
-
-def get_connection():
-    connection = sqlite3.connect(DATABASE_PATH)
-    connection.row_factory = sqlite3.Row
-    return connection
-
-
-def initialize_database():
-    connection = get_connection()
-
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS customers (
-            user_id TEXT PRIMARY KEY,
-            password_hash TEXT NOT NULL,
-            balance REAL NOT NULL,
-            average_transaction_amount REAL NOT NULL,
-            highest_transaction_amount REAL NOT NULL
-        )
-        """
-    )
-
-    connection.commit()
-    connection.close()
+    try:
+        yield db
+    finally:
+        db.close()

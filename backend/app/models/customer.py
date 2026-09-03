@@ -1,11 +1,12 @@
-from dataclasses import dataclass
+from sqlalchemy import Column, Integer, String, Float
+from app.database import Base
 
 
-@dataclass
-class Customer:
-    user_id: str
-    password_hash: str
-    balance: float
-    average_transaction_amount: float
-    highest_transaction_amount: float
-    
+class Customer(Base):
+    __tablename__ = "customers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(50), unique=True, index=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    balance = Column(Float, nullable=False, default=0.0)
+    average_transaction_amount = Column(Float, nullable=False, default=0.0)

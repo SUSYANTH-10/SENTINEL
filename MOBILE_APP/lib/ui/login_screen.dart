@@ -1,5 +1,9 @@
+
 import 'package:flutter/material.dart';
+
+import '../services/api_service.dart';
 import 'payment_screen.dart';
+import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -9,86 +13,102 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _userIdController =
+      TextEditingController();
 
-  bool _isObscured = true;
-  int _failedAttempts = 0;
-  static const int _maxAttempts = 5;
-  bool _isLockedOut = false;
+  final TextEditingController _passwordController =
+      TextEditingController();
 
-  static const String _validUsername = "tamil";
-  static const String _validPassword = "9999";
+  final ApiService _apiService = ApiService();
 
-  void _handleLogin() {
-    if (_isLockedOut) return;
+  bool _obscurePassword = true;
+  bool _isLoading = false;
 
-    final username = _usernameController.text.trim();
-    final password = _passwordController.text.trim();
+  String? _errorMessage;
 
-    if (username.isEmpty || password.isEmpty) {
-      _showSnackBar("Please enter both username and password.", Colors.orange);
+  @override
+  void dispose() {
+    _userIdController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _errorMessage = null;
+    });
+
+    final userId = _userIdController.text.trim();
+    final password = _passwordController.text;
+
+    if (userId.isEmpty || password.isEmpty) {
+      setState(() {
+        _errorMessage = 'Please enter your user ID and password.';
+      });
       return;
     }
 
-    if (username == _validUsername && password == _validPassword) {
-      setState(() {
-        _failedAttempts = 0;
-      });
+    setState(() {
+      _isLoading = true;
+    });
 
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const PaymentScreen()),
+    try {
+      final result = await _apiService.login(
+        userId: userId,
+        password: password,
       );
-    } else {
-      setState(() {
-        _failedAttempts++;
-        if (_failedAttempts >= _maxAttempts) {
-          _isLockedOut = true;
-        }
-      });
 
-      if (_isLockedOut) {
-        _showSecurityDialog(
-          "ACCOUNT LOCKED OUT",
-          "You have exceeded the maximum limit of 5 login attempts. Your account has been temporarily locked for security reasons.",
-        );
-      } else {
-        final remaining = _maxAttempts - _failedAttempts;
-        _showSnackBar(
-          "Invalid username or password. $remaining attempt(s) remaining.",
-          Colors.red,
-        );
+      if (!mounted) return;
+
+      final balance = (result['balance'] as num?)?.toDouble() ?? 0.0;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PaymentScreen(
+            userId: userId,
+            balance: balance,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _errorMessage =
+            e.toString().replaceFirst('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
 
-  void _showSnackBar(String text, Color color) {
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(text),
-        backgroundColor: color,
-        duration: const Duration(seconds: 3),
+  InputDecoration _inputDecoration({
+    required String label,
+    required IconData icon,
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon),
+      suffixIcon: suffixIcon,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
       ),
-    );
-  }
-
-  void _showSecurityDialog(String title, String message) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          title,
-          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(
+          width: 2,
         ),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text("OK"),
-          ),
-        ],
       ),
     );
   }
@@ -96,112 +116,278 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.shield_outlined,
-                size: 80,
-                color: Colors.indigo,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: 500,
               ),
-              const SizedBox(height: 12),
-              const Text(
-                "SENTINEL BANK",
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.indigo,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const Text(
-                "Real-Time Threat & Coercion Guard",
-                style: TextStyle(color: Colors.grey, fontSize: 13),
-              ),
-              const SizedBox(height: 32),
-              Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // --------------------------------------------------
+                  // SENTINEL LOGO
+                  // --------------------------------------------------
+
+                  Center(
+                    child: Container(
+                      width: 82,
+                      height: 82,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4054B8),
+                        borderRadius: BorderRadius.circular(22),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.shield_rounded,
+                        color: Colors.white,
+                        size: 48,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 28),
+
+                  // --------------------------------------------------
+                  // TITLE
+                  // --------------------------------------------------
+
+                  const Text(
+                    'SENTINEL',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  const Text(
+                    'Welcome back',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  const Text(
+                    'Sign in to securely access your account.',
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // --------------------------------------------------
+                  // USER ID
+                  // --------------------------------------------------
+
+                  TextField(
+                    controller: _userIdController,
+                    enabled: !_isLoading,
+                    textInputAction: TextInputAction.next,
+                    decoration: _inputDecoration(
+                      label: 'User ID',
+                      icon: Icons.person_outline,
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // --------------------------------------------------
+                  // PASSWORD
+                  // --------------------------------------------------
+
+                  TextField(
+                    controller: _passwordController,
+                    enabled: !_isLoading,
+                    obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _login(),
+                    decoration: _inputDecoration(
+                      label: 'Password',
+                      icon: Icons.lock_outline,
+                      suffixIcon: IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword =
+                                !_obscurePassword;
+                          });
+                        },
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // --------------------------------------------------
+                  // ERROR MESSAGE
+                  // --------------------------------------------------
+
+                  if (_errorMessage != null)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.red.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: Colors.red,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _errorMessage!,
+                              style: const TextStyle(
+                                color: Colors.red,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // --------------------------------------------------
+                  // SIGN IN BUTTON
+                  // --------------------------------------------------
+
+                  SizedBox(
+                    height: 54,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _login,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            const Color(0xFF4054B8),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'SIGN IN',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // --------------------------------------------------
+                  // DIVIDER
+                  // --------------------------------------------------
+
+                  Row(
                     children: [
-                      TextField(
-                        controller: _usernameController,
-                        enabled: !_isLockedOut,
-                        decoration: const InputDecoration(
-                          labelText: "Username / Customer ID",
-                          hintText: "demo_user",
-                          prefixIcon: Icon(Icons.person_outline),
-                          border: OutlineInputBorder(),
+                      const Expanded(
+                        child: Divider(),
+                      ),
+                      Padding(
+                        padding:
+                            const EdgeInsets.symmetric(
+                          horizontal: 12,
+                        ),
+                        child: Text(
+                          'OR',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _passwordController,
-                        enabled: !_isLockedOut,
-                        obscureText: _isObscured,
-                        decoration: InputDecoration(
-                          labelText: "Password",
-                          hintText: "password123",
-                          prefixIcon: const Icon(Icons.lock_outline),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _isObscured ? Icons.visibility_off : Icons.visibility,
-                            ),
-                            onPressed: () {
-                              setState(() => _isObscured = !_isObscured);
-                            },
-                          ),
-                          border: const OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      if (_failedAttempts > 0 && !_isLockedOut)
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            "Failed attempts: $_failedAttempts / $_maxAttempts",
-                            style: const TextStyle(
-                              color: Colors.red,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          onPressed: _isLockedOut ? null : _handleLogin,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.indigo,
-                            disabledBackgroundColor: Colors.grey,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: Text(
-                            _isLockedOut ? "Account Locked" : "Secure Login",
-                            style: const TextStyle(fontSize: 16, color: Colors.white),
-                          ),
-                        ),
+                      const Expanded(
+                        child: Divider(),
                       ),
                     ],
                   ),
-                ),
+
+                  const SizedBox(height: 16),
+
+                  // --------------------------------------------------
+                  // SIGN UP
+                  // --------------------------------------------------
+
+                  OutlinedButton(
+                    onPressed: _isLoading
+                        ? null
+                        : () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const SignupScreen(),
+                              ),
+                            );
+                          },
+                    style: OutlinedButton.styleFrom(
+                      minimumSize:
+                          const Size.fromHeight(54),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'CREATE NEW ACCOUNT',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  const Text(
+                    'Protected by SENTINEL fraud detection',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 }
+

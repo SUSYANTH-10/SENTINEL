@@ -1,10 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-enum CallStatus {
-  idle,
-  activeCall,
-  incomingCall,
-}
+enum CallStatus { idle, activeCall, incomingCall }
 
 class CallDetector {
   CallStatus _currentStatus = CallStatus.idle;
