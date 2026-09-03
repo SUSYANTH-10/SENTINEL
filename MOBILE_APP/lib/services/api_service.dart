@@ -1,8 +1,10 @@
-import 'dart0:convert';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  // Replace this base URL once Teammate 1 hosts or exposes their backend API
+  // Use http://localhost:5000 for Flutter Web / Chrome
+  // Use http://10.0.2.2:5000 for Android Emulator
+  // Use http://<YOUR_LOCAL_IP>:5000 for Physical Devices on Wi-Fi
   final String baseUrl;
 
   ApiService({this.baseUrl = "http://localhost:5000"});
@@ -32,16 +34,16 @@ class ApiService {
         url,
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(payload),
-      );
+      ).timeout(const Duration(seconds: 4));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
       } else {
-        print("[SENTINEL API] Server error: ${response.statusCode}");
+        print("[SENTINEL API] Server returned status code: ${response.statusCode}");
         return null;
       }
     } catch (e) {
-      print("[SENTINEL API] Failed to connect to risk server: $e");
+      print("[SENTINEL API] Network exception / offline: $e");
       return null;
     }
   }

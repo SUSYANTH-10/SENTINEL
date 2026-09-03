@@ -1,30 +1,26 @@
-import 'dart:async';
+import 'package:flutter/foundation.dart';
 
-enum CallStatus { idle, ringing, activeCall }
+enum CallStatus {
+  idle,
+  activeCall,
+  incomingCall,
+}
 
 class CallDetector {
   CallStatus _currentStatus = CallStatus.idle;
-  final StreamController<CallStatus> _statusController =
-      StreamController<CallStatus>.broadcast();
 
-  Stream<CallStatus> get callStatusStream => _statusController.stream;
   CallStatus get currentStatus => _currentStatus;
 
-  /// Simulates active call monitoring for local UI & testing.
-  /// On real Android/iOS, this will invoke Platform Channels (MethodChannel).
   void startMonitoring() {
-    // Basic polling or native event listener logic stub
-    print("[SENTINEL SDK] Call Detector Started...");
+    debugPrint("[SENTINEL SDK] Call monitoring service initialized.");
   }
 
-  /// Helper trigger to simulate scam call detection during hackathon demo
   void simulateIncomingCall(CallStatus status) {
     _currentStatus = status;
-    _statusController.add(_currentStatus);
-    print("[SENTINEL SDK] Simulated Call State Change: $status");
+    debugPrint("[SENTINEL SDK] Call status changed to: $_currentStatus");
   }
 
-  void stopMonitoring() {
-    _statusController.close();
+  bool isCallActive() {
+    return _currentStatus == CallStatus.activeCall;
   }
 }

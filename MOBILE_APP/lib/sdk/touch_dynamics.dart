@@ -1,46 +1,27 @@
-import 'dart:ui';
-
-class TouchMetric {
-  final Offset position;
-  final DateTime timestamp;
-  final double pressure;
-
-  TouchMetric({
-    required this.position,
-    required this.timestamp,
-    this.pressure = 1.0,
-  });
-}
+import 'package:flutter/material.dart';
 
 class TouchDynamicsDetector {
-  final List<TouchMetric> _touchBuffer = [];
+  Offset? _touchDownPosition;
+  DateTime? _touchDownTime;
+  double _lastVelocity = 0.0;
 
   void recordTouchDown(Offset position) {
-    _touchBuffer.add(TouchMetric(
-      position: position,
-      timestamp: DateTime.now(),
-    ));
-    _analyzePattern();
+    _touchDownPosition = position;
+    _touchDownTime = DateTime.now();
   }
 
-  void _analyzePattern() {
-    if (_touchBuffer.length < 2) return;
+  void recordTouchUp(Offset position) {
+    if (_touchDownPosition != null && _touchDownTime != null) {
+      final distance = (position - _touchDownPosition!).distance;
+      final duration = DateTime.now().difference(_touchDownTime!).inMilliseconds;
 
-    final last = _touchBuffer.last;
-    final previous = _touchBuffer[_touchBuffer.length - 2];
-
-    final timeDiffMs = last.timestamp.difference(previous.timestamp).inMilliseconds;
-    final distance = (last.position - previous.position).distance;
-
-    if (timeDiffMs > 0) {
-      final velocity = distance / timeDiffMs;
-      if (velocity > 3.0) {
-        print("[SENTINEL SDK] Anomalous fast interaction detected! Velocity: $velocity");
+      if (duration > 0) {
+        _lastVelocity = distance / duration;
       }
     }
   }
 
-  void clearBuffer() {
-    _touchBuffer.clear();
+  double calculateVelocity() {
+    return _lastVelocity;
   }
 }
