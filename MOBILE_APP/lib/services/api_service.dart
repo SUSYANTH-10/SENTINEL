@@ -1,13 +1,16 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
+  static const _requestTimeout = Duration(seconds: 15);
+
   final String baseUrl;
 
   ApiService({
-    this.baseUrl = 'http://127.0.0.1:8000',
+    this.baseUrl = 'https://sentinel-api-tamilselvan.onrender.com',
   });
 
   // ============================================================
@@ -39,7 +42,7 @@ class ApiService {
           'Content-Type': 'application/json',
         },
         body: jsonEncode(payload),
-      );
+      ).timeout(_requestTimeout);
 
       final data = jsonDecode(response.body);
 
@@ -78,7 +81,7 @@ class ApiService {
           'Content-Type': 'application/json',
         },
         body: body,
-      );
+      ).timeout(_requestTimeout);
 
       final data = jsonDecode(response.body);
 

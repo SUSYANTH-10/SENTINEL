@@ -85,8 +85,8 @@ class _LoginScreenState extends State<LoginScreen> {
         if (errorStr.contains('Failed to fetch') ||
             errorStr.contains('Connection refused') ||
             errorStr.contains('SocketException')) {
-          _errorMessage =
-              'Unable to connect to SENTINEL server. Please ensure the backend is running at http://127.0.0.1:8000.';
+            _errorMessage =
+              'Unable to connect to SENTINEL server. Please try again in a moment.';
         } else {
           _errorMessage = errorStr.replaceFirst('Exception: ', '');
         }
